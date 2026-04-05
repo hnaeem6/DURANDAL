@@ -43,6 +43,21 @@ export const tasks = sqliteTable("tasks", {
     .$defaultFn(() => new Date()),
 });
 
+export const taskEvents = sqliteTable("task_events", {
+  id: text("id").primaryKey(),
+  taskId: text("task_id")
+    .notNull()
+    .references(() => tasks.id),
+  type: text("type", {
+    enum: ["created", "planning", "step_start", "step_complete", "step_failed", "awaiting_approval", "completed", "failed"],
+  }).notNull(),
+  message: text("message").notNull(),
+  metadata: text("metadata"),
+  timestamp: integer("timestamp", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
 export const auditLog = sqliteTable("audit_log", {
   id: text("id").primaryKey(),
   timestamp: integer("timestamp", { mode: "timestamp" })
