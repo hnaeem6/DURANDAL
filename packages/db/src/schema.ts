@@ -101,6 +101,14 @@ export const schedules = sqliteTable("schedules", {
     .$defaultFn(() => new Date()),
 });
 
+export const settings = sqliteTable("settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
 export const credentials = sqliteTable("credentials", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),

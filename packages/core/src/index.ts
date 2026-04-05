@@ -1,6 +1,7 @@
 // DURANDAL Core Types & Constants
 
 export * from "./templates";
+export * from "./license";
 
 export const DURANDAL_VERSION = "0.1.0";
 
