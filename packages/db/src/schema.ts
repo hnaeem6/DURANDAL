@@ -87,6 +87,20 @@ export const approvals = sqliteTable("approvals", {
     .$defaultFn(() => new Date()),
 });
 
+export const schedules = sqliteTable("schedules", {
+  id: text("id").primaryKey(),
+  templateId: text("template_id").notNull(),
+  parameters: text("parameters").notNull(), // JSON string
+  cronExpression: text("cron_expression").notNull(),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  lastRun: integer("last_run", { mode: "timestamp" }),
+  nextRun: integer("next_run", { mode: "timestamp" }),
+  createdBy: text("created_by").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
 export const credentials = sqliteTable("credentials", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
