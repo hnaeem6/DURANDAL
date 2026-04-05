@@ -69,6 +69,24 @@ export const auditLog = sqliteTable("audit_log", {
   details: text("details"),
 });
 
+export const approvals = sqliteTable("approvals", {
+  id: text("id").primaryKey(),
+  taskId: text("task_id")
+    .notNull()
+    .references(() => tasks.id),
+  stepIndex: integer("step_index").notNull(),
+  stepName: text("step_name").notNull(),
+  prompt: text("prompt").notNull(),
+  status: text("status", { enum: ["pending", "approved", "rejected"] })
+    .notNull()
+    .default("pending"),
+  reviewedBy: text("reviewed_by"),
+  reviewedAt: integer("reviewed_at", { mode: "timestamp" }),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
 export const credentials = sqliteTable("credentials", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),

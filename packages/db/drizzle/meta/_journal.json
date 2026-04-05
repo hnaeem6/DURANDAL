@@ -15,6 +15,13 @@
       "when": 1775401786913,
       "tag": "0001_salty_changeling",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1775414356604,
+      "tag": "0002_light_surge",
+      "breakpoints": true
     }
   ]
 }
