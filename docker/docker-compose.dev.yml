@@ -1,0 +1,26 @@
+services:
+  dashboard:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dashboard
+      target: deps
+    command: pnpm --filter @durandal/dashboard dev
+    volumes:
+      - ../apps/dashboard/src:/app/apps/dashboard/src
+      - ../packages:/app/packages
+    ports:
+      - "3001:3001"
+
+  hermes:
+    healthcheck:
+      start_period: 60s
+    ports:
+      - "8642:8642"
+
+  nanoclaw:
+    ports:
+      - "3000:3000"
+
+  caddy:
+    profiles:
+      - with-caddy

@@ -1,0 +1,107 @@
+services:
+  dashboard:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dashboard
+    environment:
+      - DATABASE_URL=file:/data/durandal.db
+      - HERMES_URL=http://hermes:8642
+      - NANOCLAW_URL=http://nanoclaw:3000
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-change-me-in-production}
+    volumes:
+      - durandal-data:/data
+    depends_on:
+      hermes:
+        condition: service_healthy
+      nanoclaw:
+        condition: service_healthy
+    networks:
+      - durandal-internal
+    restart: unless-stopped
+
+  hermes:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.hermes
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - HERMES_DATA=/data/hermes
+    volumes:
+      - durandal-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8642/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - durandal-internal
+    restart: unless-stopped
+
+  nanoclaw:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.nanoclaw
+    environment:
+      - DURANDAL_MODE=executor
+    volumes:
+      - durandal-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - durandal-internal
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama-models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - durandal-internal
+    restart: unless-stopped
+    # Uncomment for GPU passthrough:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - capabilities: [gpu]
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - dashboard
+    networks:
+      - durandal-internal
+    restart: unless-stopped
+
+volumes:
+  durandal-data:
+    name: durandal-data
+  ollama-models:
+    name: durandal-ollama-models
+  caddy-data:
+    name: durandal-caddy-data
+  caddy-config:
+    name: durandal-caddy-config
+
+networks:
+  durandal-internal:
+    driver: bridge

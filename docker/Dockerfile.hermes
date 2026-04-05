@@ -1,0 +1,25 @@
+FROM python:3.12-slim AS base
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl git && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
+
+WORKDIR /app
+COPY vendors/hermes-agent/ .
+
+RUN uv sync --frozen 2>/dev/null || uv sync
+
+# Create data directory
+RUN mkdir -p /data/hermes
+
+ENV HERMES_DATA=/data/hermes
+EXPOSE 8642
+
+HEALTHCHECK --interval=15s --timeout=5s --retries=3 \
+  CMD curl -f http://localhost:8642/health || exit 1
+
+CMD ["uv", "run", "hermes", "serve", "--host", "0.0.0.0", "--port", "8642"]

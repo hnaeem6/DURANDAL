@@ -1,0 +1,15 @@
+{
+	admin off
+}
+
+:443 {
+	tls internal
+
+	reverse_proxy /api/* dashboard:3001
+	reverse_proxy /_next/* dashboard:3001
+	reverse_proxy dashboard:3001
+}
+
+:80 {
+	redir https://{host}{uri} permanent
+}
