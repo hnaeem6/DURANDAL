@@ -1,5 +1,7 @@
 // DURANDAL Core Types & Constants
 
+export * from "./templates";
+
 export const DURANDAL_VERSION = "0.1.0";
 
 export const HERMES_DEFAULT_PORT = 8642;
