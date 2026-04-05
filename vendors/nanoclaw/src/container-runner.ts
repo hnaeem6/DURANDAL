@@ -278,6 +278,19 @@ async function buildContainerArgs(
     }
   }
 
+  // Security hardening: drop all capabilities, prevent privilege escalation,
+  // limit resources, and make root filesystem read-only.
+  // Writable areas are provided via bind mounts (see buildVolumeMounts).
+  // NOTE: Network is left as-is — some containers need network for web browsing.
+  // Phase 3 templates will add per-template network allowlists.
+  args.push('--cap-drop', 'ALL');
+  args.push('--security-opt', 'no-new-privileges');
+  args.push('--pids-limit', '128');
+  args.push('--memory', '512m');
+  args.push('--cpus', '0.5');
+  args.push('--read-only');
+  args.push('--tmpfs', '/tmp:rw,noexec,nosuid,size=256m');
+
   args.push(CONTAINER_IMAGE);
 
   return args;

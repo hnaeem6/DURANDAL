@@ -23,6 +23,10 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.hermes
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     environment:
       - OLLAMA_HOST=http://ollama:11434
       - HERMES_DATA=/data/hermes
@@ -47,6 +51,10 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.nanoclaw
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     environment:
       - DURANDAL_MODE=executor
       - NANOCLAW_API_PORT=7777
