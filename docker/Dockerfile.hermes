@@ -13,13 +13,19 @@ COPY vendors/hermes-agent/ .
 
 RUN uv sync --frozen 2>/dev/null || uv sync
 
-# Create data directory
-RUN mkdir -p /data/hermes
+# Create data and config directories
+RUN mkdir -p /data/hermes /root/.hermes
+
+# Copy DURANDAL-optimized config into Hermes home
+COPY vendors/hermes-agent/durandal-config.yaml /root/.hermes/config.yaml
 
 ENV HERMES_DATA=/data/hermes
+ENV API_SERVER_ENABLED=true
+ENV API_SERVER_PORT=8642
+ENV API_SERVER_HOST=0.0.0.0
 EXPOSE 8642
 
 HEALTHCHECK --interval=15s --timeout=5s --retries=3 \
   CMD curl -f http://localhost:8642/health || exit 1
 
-CMD ["uv", "run", "hermes", "serve", "--host", "0.0.0.0", "--port", "8642"]
+CMD ["uv", "run", "hermes", "gateway", "run"]

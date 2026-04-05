@@ -1,0 +1,76 @@
+# DURANDAL Hermes Agent Configuration
+# Pre-configured for containerized deployment with Ollama.
+# This file is copied to /root/.hermes/config.yaml inside the Docker image.
+
+# =============================================================================
+# Model Configuration
+# =============================================================================
+model:
+  default: "qwen2.5:7b"
+  provider: "ollama"
+  base_url: "http://ollama:11434/v1"
+
+# =============================================================================
+# Terminal Tool Configuration
+# =============================================================================
+terminal:
+  backend: "local"
+  cwd: "/"
+  timeout: 180
+  lifetime_seconds: 300
+
+# =============================================================================
+# Persistent Memory
+# =============================================================================
+memory:
+  memory_enabled: true
+  user_profile_enabled: true
+  memory_char_limit: 2200
+  user_char_limit: 1375
+  nudge_interval: 10
+  flush_min_turns: 6
+
+# =============================================================================
+# Context Compression
+# =============================================================================
+compression:
+  enabled: true
+  threshold: 0.50
+  target_ratio: 0.20
+  protect_last_n: 20
+  summary_model: "qwen2.5:7b"
+
+# =============================================================================
+# Agent Behavior
+# =============================================================================
+agent:
+  max_turns: 60
+  verbose: false
+  reasoning_effort: "medium"
+
+# =============================================================================
+# Platform Toolsets
+# =============================================================================
+platform_toolsets:
+  api_server: [terminal, file, web, todo]
+
+# =============================================================================
+# Session Reset Policy
+# =============================================================================
+session_reset:
+  mode: both
+  idle_minutes: 1440
+  at_hour: 4
+
+# =============================================================================
+# Display
+# =============================================================================
+display:
+  compact: true
+  tool_progress: all
+
+# =============================================================================
+# Skills
+# =============================================================================
+skills:
+  creation_nudge_interval: 15
