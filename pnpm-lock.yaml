@@ -32,6 +32,9 @@ importers:
       '@durandal/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@durandal/vault':
+        specifier: workspace:*
+        version: link:../../packages/vault
       '@radix-ui/react-dialog':
         specifier: ^1.1.6
         version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -147,6 +150,18 @@ importers:
         version: 5.9.3
 
   packages/tsconfig: {}
+
+  packages/vault:
+    devDependencies:
+      '@durandal/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.17
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
 
 packages:
 
