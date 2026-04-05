@@ -1,0 +1,21 @@
+{
+  "name": "durandal",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Your unbreakable AI workforce. Runs local. Stays private. Gets smarter.",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0",
+    "typescript": "^5.7.0"
+  },
+  "packageManager": "pnpm@10.8.0",
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
