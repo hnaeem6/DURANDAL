@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 import { requireRole } from "@/lib/rbac";
+import { logAudit } from "@/lib/audit";
 
 const MEMORY_DIR = join(
   process.env.HERMES_DATA || "/data/hermes",
@@ -46,6 +47,8 @@ export async function PUT(req: NextRequest) {
     if (user !== undefined) {
       writeFileSync(join(MEMORY_DIR, "USER.md"), user, "utf-8");
     }
+
+    logAudit({ actor: "system", action: "memory.update", resource: "memory:agent", details: `Updated ${memory !== undefined ? "MEMORY.md" : ""}${memory !== undefined && user !== undefined ? " and " : ""}${user !== undefined ? "USER.md" : ""}`.trim() });
 
     return NextResponse.json({ ok: true });
   } catch {

@@ -3,6 +3,7 @@ import { hash } from "bcryptjs";
 import { createDb, users } from "@durandal/db";
 import { config } from "@/lib/config";
 import { count } from "drizzle-orm";
+import { logAudit } from "@/lib/audit";
 
 function getDb() {
   const dbPath = config.databaseUrl.replace("file:", "");
@@ -85,6 +86,8 @@ export async function POST(request: Request) {
         createdAt: new Date(),
       })
       .run();
+
+    logAudit({ actor: email, action: "user.create", resource: `user:${id}`, details: "Owner account created via setup wizard" });
 
     return NextResponse.json({
       success: true,

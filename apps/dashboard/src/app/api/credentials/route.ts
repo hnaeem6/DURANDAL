@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { encrypt } from "@durandal/vault";
 import { requireRole, getAuthUser } from "@/lib/rbac";
 import { config } from "@/lib/config";
+import { logAudit } from "@/lib/audit";
 
 function getDb() {
   const dbPath = config.databaseUrl.replace("file:", "");
@@ -87,6 +88,8 @@ export async function POST(req: NextRequest) {
       })
       .run();
 
+    logAudit({ actor: user?.email ?? "system", action: "credential.create", resource: `credential:${id}`, details: `${service}/${name}` });
+
     return NextResponse.json({ id, name, service }, { status: 201 });
   } catch {
     return NextResponse.json(
@@ -116,7 +119,10 @@ export async function DELETE(req: NextRequest) {
     }
 
     const db = getDb();
+    const user = await getAuthUser();
     db.delete(credentials).where(eq(credentials.id, id)).run();
+
+    logAudit({ actor: user?.email ?? "system", action: "credential.delete", resource: `credential:${id}` });
 
     return NextResponse.json({ ok: true });
   } catch {

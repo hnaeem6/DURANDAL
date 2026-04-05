@@ -6,6 +6,7 @@ import {
   updateTaskStatus,
 } from "@/lib/tasks";
 import { sendToHermes } from "@/lib/hermes-client";
+import { logAudit } from "@/lib/audit";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -22,6 +23,7 @@ export async function POST(req: NextRequest) {
   });
 
   addTaskEvent(id, "created", `Task created: ${input.slice(0, 100)}`);
+  logAudit({ actor: "system", action: "task.create", resource: `task:${id}`, details: input.slice(0, 200) });
 
   // Execute synchronously for Phase 1 (Phase 2 adds async + WebSocket)
   try {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTask, cancelTask } from "@/lib/tasks";
+import { logAudit } from "@/lib/audit";
 
 export async function GET(
   _req: NextRequest,
@@ -21,5 +22,6 @@ export async function DELETE(
 ) {
   const { id } = await params;
   cancelTask(id);
+  logAudit({ actor: "system", action: "task.cancel", resource: `task:${id}` });
   return NextResponse.json({ ok: true });
 }
