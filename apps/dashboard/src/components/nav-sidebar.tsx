@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, ListChecks, Bot, ScrollText, Settings, LogOut } from "lucide-react";
+import { Home, ListChecks, LayoutTemplate, Bot, ScrollText, Settings, LogOut } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface NavUser {
@@ -18,6 +18,7 @@ interface NavSidebarProps {
 const NAV_ITEMS = [
   { href: "/", label: "Home", icon: Home },
   { href: "/tasks", label: "Tasks", icon: ListChecks },
+  { href: "/templates", label: "Templates", icon: LayoutTemplate },
   { href: "/agents", label: "Agents", icon: Bot },
   { href: "/audit", label: "Audit Log", icon: ScrollText },
   { href: "/settings", label: "Settings", icon: Settings },
