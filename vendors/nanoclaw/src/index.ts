@@ -62,6 +62,7 @@ import {
   shouldDropMessage,
 } from './sender-allowlist.js';
 import { startSessionCleanup } from './session-cleanup.js';
+import { startApiServer } from './api.js';
 import { startSchedulerLoop } from './task-scheduler.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { logger } from './logger.js';
@@ -580,6 +581,10 @@ async function main(): Promise<void> {
     ensureOneCLIAgent(jid, group);
   }
 
+  // Start the DURANDAL HTTP API server so Hermes can submit tasks
+  // even when no messaging channels are connected.
+  await startApiServer();
+
   restoreRemoteControl();
 
   // Graceful shutdown handlers
@@ -691,8 +696,28 @@ async function main(): Promise<void> {
     await channel.connect();
   }
   if (channels.length === 0) {
-    logger.fatal('No channels connected');
-    process.exit(1);
+    logger.warn(
+      'No channels connected — running in DURANDAL API-only mode. ' +
+        'Hermes can submit tasks via the HTTP API.',
+    );
+    // In API-only mode we still start the scheduler so scheduled tasks
+    // created via the API can fire, but skip the message loop and IPC
+    // watcher since there are no channels to deliver messages to.
+    startSchedulerLoop({
+      registeredGroups: () => registeredGroups,
+      getSessions: () => sessions,
+      queue,
+      onProcess: (groupJid, proc, containerName, groupFolder) =>
+        queue.registerProcess(groupJid, proc, containerName, groupFolder),
+      sendMessage: async (jid, rawText) => {
+        logger.warn(
+          { jid, textLength: rawText.length },
+          'Scheduler tried to send message but no channels are connected',
+        );
+      },
+    });
+    startSessionCleanup();
+    return;
   }
 
   // Start subsystems (independently of connection handler)
