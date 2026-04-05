@@ -38,8 +38,8 @@ export default function Home() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center p-8 pt-16">
-      <h1 className="text-4xl font-bold tracking-wider mb-2 bg-gradient-to-r from-orange-500 to-yellow-500 bg-clip-text text-transparent">
+    <div className="flex flex-col items-center pt-8">
+      <h1 className="text-3xl font-bold tracking-wider mb-2 bg-gradient-to-r from-orange-500 to-yellow-500 bg-clip-text text-transparent">
         DURANDAL
       </h1>
       <p className="text-gray-500 text-sm mb-8">v{DURANDAL_VERSION}</p>
@@ -99,6 +99,6 @@ export default function Home() {
           </div>
         </div>
       )}
-    </main>
+    </div>
   );
 }
