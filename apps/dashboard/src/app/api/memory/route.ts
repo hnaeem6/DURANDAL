@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
+import { requireRole } from "@/lib/rbac";
 
 const MEMORY_DIR = join(
   process.env.HERMES_DATA || "/data/hermes",
@@ -29,6 +30,9 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
+  const denied = await requireRole("admin");
+  if (denied) return denied;
+
   try {
     const { memory, user } = await req.json();
 
