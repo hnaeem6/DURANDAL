@@ -1,0 +1,327 @@
+# Templates
+
+Templates are the core automation unit in DURANDAL. A template defines a multi-step workflow that the AI agent executes, including which tools to call, what parameters to accept, which steps need human approval, and what network access each step is allowed.
+
+## What Templates Are
+
+A template is a YAML file stored in the `templates/` directory at the project root. Each template describes:
+
+- **Metadata** -- ID, name, description, category, and icon
+- **Required credentials** -- What API keys or secrets the template needs
+- **Parameters** -- User-configurable inputs with types, defaults, and validation
+- **Steps** -- An ordered sequence of AI-powered actions, each with a prompt, network allowlist, timeout, and optional approval gate
+- **Schedule** -- An optional cron expression for automatic execution
+- **Network allowlist** -- Top-level domain patterns the template is allowed to reach
+
+When a user runs a template, DURANDAL substitutes the parameter values into each step's prompt using `{{paramName}}` syntax, then executes steps sequentially via the Hermes agent and NanoClaw execution engine.
+
+## Built-In Templates
+
+DURANDAL ships with five production-ready templates:
+
+### 1. Customer Support Triage
+
+**ID:** `customer-support` | **Category:** Support | **Schedule:** Every 30 min, 9 AM - 5 PM weekdays
+
+Fetches new support tickets from your helpdesk API, classifies them by type and urgency, drafts empathetic responses, and sends replies or escalates complex issues. The send/escalate step requires human approval.
+
+**Parameters:**
+- `helpdesk_endpoint` (URL, required) -- Helpdesk API base URL
+- `support_email` (email, required) -- From address for support replies
+- `escalation_team` (string, default: `tier-2`) -- Team to escalate to
+- `sla_hours` (number, default: `4`) -- SLA response time target
+- `knowledge_base_url` (URL, optional) -- Help article reference
+
+**Steps:** Fetch tickets -> Categorise -> Draft responses -> Send/escalate (approval required)
+
+---
+
+### 2. Email Triage & Response
+
+**ID:** `email-triage` | **Category:** Communication | **Schedule:** 8 AM, 12 PM, 4 PM weekdays
+
+Connects to your IMAP mailbox, classifies emails by urgency and category (meeting, action required, FYI, newsletter, spam), drafts context-aware replies, and sends them. The send step requires approval.
+
+**Parameters:**
+- `email_account` (email, required) -- Email address to triage
+- `priority_keywords` (string, default: `urgent, asap, deadline, critical, important`) -- High-priority signal words
+- `auto_label` (boolean, default: `true`) -- Apply IMAP labels automatically
+- `response_tone` (select, default: `professional`) -- Options: professional, friendly, concise, formal
+- `max_emails` (number, default: `50`) -- Max emails per run
+
+**Steps:** Fetch unread -> Classify -> Draft responses -> Send (approval required)
+
+---
+
+### 3. Invoice Processing
+
+**ID:** `invoice-processing` | **Category:** Finance | **Schedule:** 9 AM weekdays
+
+Monitors an email folder for invoices with PDF attachments, extracts structured line-item data, fuzzy-matches vendors against your approved vendor list, and posts entries to your accounting system. Flagged invoices go to a review queue instead.
+
+**Parameters:**
+- `email_account` (email, required) -- Mailbox to monitor
+- `vendor_list_url` (URL, required) -- Approved vendor CSV/API endpoint
+- `accounting_endpoint` (URL, required) -- Accounting system API base URL
+- `invoice_folder` (string, default: `INBOX/Invoices`) -- IMAP folder to scan
+- `currency` (select, default: `USD`) -- Options: USD, EUR, GBP, CAD, AUD
+
+**Steps:** Fetch emails -> Extract PDF data -> Match vendors -> Update accounting (approval required)
+
+---
+
+### 4. Inventory Monitoring & Reorder Alerts
+
+**ID:** `inventory-alerts` | **Category:** Operations | **Schedule:** Daily at 7 AM
+
+Checks inventory levels against minimum thresholds, calculates days until stockout using 90-day demand history, generates smart reorder suggestions, and sends alerts to your team via Slack, email, Teams, or webhook.
+
+**Parameters:**
+- `inventory_endpoint` (URL, required) -- Inventory system API base URL
+- `low_stock_threshold` (number, default: `20`) -- Percentage threshold for flagging
+- `alert_channel` (select, default: `slack`) -- Options: slack, email, teams, webhook
+- `alert_recipients` (string, required) -- Comma-separated recipient identifiers
+- `webhook_url` (URL, required) -- Notification webhook endpoint
+
+**Steps:** Check levels -> Generate reorder suggestions -> Send alerts (approval required)
+
+---
+
+### 5. Social Media Post Generator
+
+**ID:** `social-media` | **Category:** Marketing | **Schedule:** None (on-demand)
+
+Generates platform-specific social media posts from a topic or brief. Supports Twitter/X (280 chars), LinkedIn (professional storytelling), and Instagram (caption format). Publishing requires approval.
+
+**Parameters:**
+- `topic` (string, required) -- Subject or brief for generated posts
+- `platforms` (string, default: `twitter, linkedin`) -- Target platforms
+- `brand_voice` (select, default: `professional`) -- Options: professional, casual, witty, inspirational, technical
+- `hashtag_count` (number, default: `5`) -- Max hashtags per post
+- `include_cta` (boolean, default: `true`) -- Include call-to-action
+
+**Steps:** Generate posts -> Review & publish (approval required)
+
+## Template YAML Schema Reference
+
+Here is the complete schema for a template YAML file:
+
+```yaml
+# Unique identifier (must match filename without .yaml extension)
+id: my-template
+
+# Human-readable name displayed in the dashboard
+name: My Custom Template
+
+# Description shown in the template list
+description: >-
+  A multi-line description of what this template does,
+  displayed to users before they run it.
+
+# Category for grouping in the UI
+# Common values: support, communication, finance, operations, marketing
+category: operations
+
+# Lucide icon name for the dashboard UI
+icon: settings
+
+# Credentials the template needs (referenced by name)
+requiredCredentials:
+  - my_api_key
+  - email_smtp
+
+# User-configurable parameters
+parameters:
+  - name: param_name        # Variable name used in {{param_name}} placeholders
+    label: Human Label       # Shown in the dashboard form
+    type: string             # One of: string, url, email, number, boolean, select
+    required: true           # Whether the user must provide a value
+    default: "fallback"      # Default value if not provided (optional)
+    description: Help text   # Shown below the form field
+    options:                 # Only for type: select
+      - option_a
+      - option_b
+
+# Ordered list of execution steps
+steps:
+  - name: Step Name          # Human-readable step label
+    tool: nanoclaw_execute   # Execution engine (always nanoclaw_execute)
+    prompt: >-               # The prompt sent to the AI agent
+      Instructions for this step. Use {{param_name}} to reference
+      parameters. The agent receives the full prompt and executes
+      it inside a sandboxed container.
+    requiresApproval: false  # If true, pauses for human review before executing
+    networkAllowlist:        # Domains this step can reach (empty = no network)
+      - "api.example.com"
+      - "*.google.com"
+    timeout: 60000           # Max execution time in milliseconds
+
+# Cron schedule for automatic execution (null for on-demand only)
+# Format: standard 5-field cron (minute hour day-of-month month day-of-week)
+schedule: "0 9 * * 1-5"
+
+# Top-level network allowlist (applies to all steps as a baseline)
+networkAllowlist:
+  - "*.example.com"
+```
+
+### Parameter Types
+
+| Type | Description | Example |
+| ---- | ----------- | ------- |
+| `string` | Free-form text input | API endpoint path, team name |
+| `url` | URL with validation | `https://api.example.com` |
+| `email` | Email address with validation | `user@company.com` |
+| `number` | Numeric input | Threshold values, counts |
+| `boolean` | Toggle switch (true/false) | Feature flags |
+| `select` | Dropdown with predefined options | Tone, currency, channel |
+
+### Network Allowlist Patterns
+
+Network allowlists use glob-style patterns:
+
+- `api.example.com` -- Exact domain match
+- `*.example.com` -- Any subdomain of example.com
+- `smtp.*` -- Any domain starting with smtp
+- `hooks.slack.com` -- Specific Slack webhook domain
+
+An empty allowlist (`[]`) means the step runs with **no network access**, which is appropriate for pure computation steps like classification and data transformation.
+
+### Approval Gates
+
+When a step has `requiresApproval: true`, execution pauses before that step runs. The system:
+
+1. Creates an approval record with the resolved prompt
+2. Sets the task status to `awaiting_approval`
+3. Returns the task with a 202 status code
+4. Waits for a human to approve or reject via the dashboard or API
+
+If approved, the step executes and subsequent steps continue. If rejected, the entire task is cancelled.
+
+### Cron Schedule Syntax
+
+| Field | Values | Special Characters |
+| ----- | ------ | ------------------ |
+| Minute | 0-59 | `*` `,` `-` `/` |
+| Hour | 0-23 | `*` `,` `-` `/` |
+| Day of Month | 1-31 | `*` `,` `-` `/` |
+| Month | 1-12 | `*` `,` `-` `/` |
+| Day of Week | 0-7 (0 and 7 = Sunday) | `*` `,` `-` `/` |
+
+Examples:
+- `*/30 9-17 * * 1-5` -- Every 30 minutes during business hours, weekdays
+- `0 8,12,16 * * 1-5` -- Three times a day on weekdays
+- `0 7 * * *` -- Daily at 7 AM
+- `0 9 * * 1-5` -- Weekday mornings at 9 AM
+
+Set `schedule: null` for templates that should only run on demand.
+
+## Creating Custom Templates
+
+### Step 1: Create the YAML File
+
+Create a new file in the `templates/` directory:
+
+```bash
+touch templates/my-workflow.yaml
+```
+
+The filename (without `.yaml`) becomes the template ID.
+
+### Step 2: Define Metadata
+
+```yaml
+id: my-workflow
+name: My Custom Workflow
+description: >-
+  Describe what this workflow does in 1-3 sentences.
+  This appears in the template list on the dashboard.
+category: operations
+icon: zap
+```
+
+### Step 3: Declare Required Credentials
+
+List the credential names that must be configured in the dashboard before this template can run:
+
+```yaml
+requiredCredentials:
+  - my_service_api_key
+```
+
+### Step 4: Define Parameters
+
+Add parameters that users will fill in when running the template:
+
+```yaml
+parameters:
+  - name: target_url
+    label: Target URL
+    type: url
+    required: true
+    description: The API endpoint to interact with
+
+  - name: batch_size
+    label: Batch Size
+    type: number
+    required: false
+    default: 100
+    description: Number of items to process per run
+```
+
+### Step 5: Write Steps
+
+Each step is a prompt that the AI agent executes inside a sandboxed container. Write clear, specific instructions:
+
+```yaml
+steps:
+  - name: Fetch data
+    tool: nanoclaw_execute
+    prompt: >-
+      Query {{target_url}}/api/items?limit={{batch_size}} to retrieve
+      the latest items. Return a JSON array with id, name, status,
+      and created_at for each item.
+    requiresApproval: false
+    networkAllowlist:
+      - "{{target_url}}"
+    timeout: 60000
+
+  - name: Process and report
+    tool: nanoclaw_execute
+    prompt: >-
+      Analyse the items from the previous step. Group by status,
+      calculate totals, and generate a summary report. Return
+      the report as structured JSON.
+    requiresApproval: false
+    networkAllowlist: []
+    timeout: 90000
+
+  - name: Send results
+    tool: nanoclaw_execute
+    prompt: >-
+      Send the summary report to the configured notification
+      channel. Include the total count and any items that
+      need attention.
+    requiresApproval: true
+    networkAllowlist:
+      - "hooks.slack.com"
+    timeout: 60000
+```
+
+### Step 6: Set Schedule (Optional)
+
+```yaml
+schedule: "0 9 * * 1-5"  # or null for on-demand
+```
+
+### Step 7: Test
+
+Run the template from the dashboard or API to verify each step executes correctly. Check the task timeline for step-by-step output and any errors.
+
+### Best Practices
+
+- **Be specific in prompts** -- Give the agent exact field names, URL paths, and expected output formats (JSON, CSV, etc.).
+- **Minimise network access** -- Only allowlist the domains each step actually needs. Use empty allowlists for computation-only steps.
+- **Use approval gates wisely** -- Put them before any step that sends data externally (emails, API writes, notifications).
+- **Set reasonable timeouts** -- 60 seconds for simple fetches, 120-180 seconds for complex processing.
+- **Test incrementally** -- Start with the first step, verify its output, then add subsequent steps.

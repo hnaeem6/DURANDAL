@@ -1,0 +1,765 @@
+# API Reference
+
+DURANDAL exposes a REST API at `https://localhost/api/`. All endpoints accept and return JSON. Authentication uses NextAuth.js session cookies for browser-based access, or bearer tokens for programmatic access.
+
+Base URL: `https://localhost/api`
+
+## Health
+
+### `GET /api/health`
+
+Returns the health status of all DURANDAL services.
+
+**Authentication:** None required
+
+**Response:**
+
+```json
+{
+  "status": "healthy",
+  "version": "0.1.0",
+  "services": {
+    "hermes": "healthy",
+    "nanoclaw": "healthy"
+  }
+}
+```
+
+The top-level `status` is `"healthy"` when all services are up, or `"degraded"` when one or more services are unhealthy.
+
+---
+
+## Tasks
+
+### `POST /api/tasks`
+
+Create and execute a new ad-hoc task (not from a template).
+
+**Request body:**
+
+```json
+{
+  "input": "Summarise the latest support tickets and flag any SLA breaches",
+  "templateId": null
+}
+```
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `input` | string | Yes | The natural language instruction for the AI agent |
+| `templateId` | string | No | Optional template ID to associate with |
+
+**Response (201):**
+
+```json
+{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+}
+```
+
+The task is executed synchronously. Poll `GET /api/tasks/{id}` for status updates.
+
+---
+
+### `GET /api/tasks`
+
+List all tasks, ordered by creation time.
+
+**Response:**
+
+```json
+{
+  "tasks": [
+    {
+      "id": "a1b2c3d4-...",
+      "templateId": "email-triage",
+      "status": "completed",
+      "input": "{\"template\":\"email-triage\",\"params\":{...}}",
+      "output": "[\"step1 result\",\"step2 result\"]",
+      "error": null,
+      "createdBy": "user-uuid",
+      "createdAt": "2026-04-01T09:00:00.000Z",
+      "updatedAt": "2026-04-01T09:02:30.000Z"
+    }
+  ]
+}
+```
+
+**Task status values:** `pending`, `planning`, `executing`, `awaiting_approval`, `completed`, `failed`, `cancelled`
+
+---
+
+### `GET /api/tasks/{id}`
+
+Get a single task by ID, including its full event timeline.
+
+**Response (200):**
+
+```json
+{
+  "id": "a1b2c3d4-...",
+  "templateId": "email-triage",
+  "status": "completed",
+  "input": "...",
+  "output": "...",
+  "error": null,
+  "createdBy": "user-uuid",
+  "createdAt": "2026-04-01T09:00:00.000Z",
+  "updatedAt": "2026-04-01T09:02:30.000Z"
+}
+```
+
+**Response (404):** `{ "error": "Task not found" }`
+
+---
+
+### `DELETE /api/tasks/{id}`
+
+Cancel a running task.
+
+**Response (200):** `{ "ok": true }`
+
+---
+
+## Templates
+
+### `GET /api/templates`
+
+List all available templates loaded from the `templates/` directory.
+
+**Response:**
+
+```json
+{
+  "templates": [
+    {
+      "id": "customer-support",
+      "name": "Customer Support Triage",
+      "description": "Fetch new support tickets, categorise them...",
+      "category": "support",
+      "icon": "headphones",
+      "parameters": [...],
+      "steps": [...],
+      "requiredCredentials": ["helpdesk_api_key", "email_smtp"],
+      "networkAllowlist": ["smtp.*", "*.gmail.com", "*.outlook.com"],
+      "schedule": "*/30 9-17 * * 1-5"
+    }
+  ]
+}
+```
+
+---
+
+### `GET /api/templates/{id}`
+
+Get a single template by ID.
+
+**Response (200):** Full template object (same shape as list items above)
+
+**Response (404):** `{ "error": "Template not found" }`
+
+---
+
+### `POST /api/templates/{id}/run`
+
+Execute a template with the provided parameters. Steps run sequentially. If a step has `requiresApproval: true`, execution pauses and returns a 202 response.
+
+**Request body:**
+
+```json
+{
+  "params": {
+    "email_account": "you@example.com",
+    "response_tone": "professional",
+    "max_emails": "20"
+  }
+}
+```
+
+**Response (200) -- All steps completed:**
+
+```json
+{
+  "id": "task-uuid",
+  "status": "completed",
+  "completedSteps": 4,
+  "results": ["step 1 output", "step 2 output", "step 3 output", "step 4 output"]
+}
+```
+
+**Response (202) -- Paused for approval:**
+
+```json
+{
+  "id": "task-uuid",
+  "status": "awaiting_approval",
+  "completedSteps": 3,
+  "awaitingStep": {
+    "index": 3,
+    "name": "Send responses"
+  },
+  "message": "Paused at step 4 \"Send responses\" — human approval required"
+}
+```
+
+**Response (400) -- Missing parameters:**
+
+```json
+{
+  "error": "Missing required parameters",
+  "missing": ["email_account"]
+}
+```
+
+**Response (500) -- Step failed:**
+
+```json
+{
+  "id": "task-uuid",
+  "status": "failed",
+  "completedSteps": 1,
+  "failedStep": {
+    "index": 1,
+    "name": "Classify and prioritise",
+    "error": "Hermes execution timeout"
+  }
+}
+```
+
+---
+
+## Approvals
+
+### `GET /api/approvals`
+
+List all pending approval requests.
+
+**Response:**
+
+```json
+{
+  "approvals": [
+    {
+      "id": "approval-uuid",
+      "taskId": "task-uuid",
+      "stepIndex": 3,
+      "stepName": "Send responses",
+      "prompt": "Using SMTP credentials for you@example.com, send each drafted response...",
+      "status": "pending",
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "createdAt": "2026-04-01T09:02:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### `GET /api/approvals/{id}`
+
+Get a single approval by ID.
+
+**Response (200):** Full approval object
+
+**Response (404):** `{ "error": "Approval not found" }`
+
+---
+
+### `POST /api/approvals/{id}`
+
+Approve or reject a pending approval.
+
+**Request body:**
+
+```json
+{
+  "action": "approve"
+}
+```
+
+| Field | Type | Required | Values |
+| ----- | ---- | -------- | ------ |
+| `action` | string | Yes | `"approve"` or `"reject"` |
+
+**Response (200):**
+
+```json
+{
+  "id": "approval-uuid",
+  "status": "approved",
+  "taskId": "task-uuid",
+  "action": "approve"
+}
+```
+
+When approved, the parent task resumes execution from the paused step. When rejected, the task is cancelled.
+
+**Response (409):** `{ "error": "Approval already approved" }` (if already resolved)
+
+---
+
+## Memory
+
+### `GET /api/memory`
+
+Retrieve the Hermes agent's memory files.
+
+**Response:**
+
+```json
+{
+  "memory": "# Agent Memory\n\nThings I've learned...",
+  "user": "# User Preferences\n\nPreferred tone: professional..."
+}
+```
+
+The `memory` field contains the contents of `MEMORY.md` (agent self-knowledge) and `user` contains `USER.md` (user preferences). Both are stored under the Hermes data directory at `/data/hermes/memories/`.
+
+---
+
+### `PUT /api/memory`
+
+Update the agent's memory files. **Requires admin role.**
+
+**Request body:**
+
+```json
+{
+  "memory": "# Updated Agent Memory\n\nNew learnings...",
+  "user": "# Updated User Preferences\n\nNew preferences..."
+}
+```
+
+Both fields are optional -- include only the ones you want to update.
+
+**Response (200):** `{ "ok": true }`
+
+---
+
+## Credentials
+
+### `GET /api/credentials`
+
+List all stored credentials (names and metadata only -- decrypted values are never returned). **Requires member role.**
+
+**Response:**
+
+```json
+{
+  "credentials": [
+    {
+      "id": "cred-uuid",
+      "name": "helpdesk_api_key",
+      "service": "zendesk",
+      "createdAt": "2026-04-01T08:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### `POST /api/credentials`
+
+Store a new encrypted credential. **Requires admin role.**
+
+**Request body:**
+
+```json
+{
+  "name": "helpdesk_api_key",
+  "service": "zendesk",
+  "value": "sk-live-abc123..."
+}
+```
+
+The `value` is encrypted with AES-256-GCM using a key derived from `VAULT_MASTER_KEY` (or `NEXTAUTH_SECRET` as fallback) via scrypt, then stored. The plain-text value is never persisted.
+
+**Response (201):**
+
+```json
+{
+  "id": "cred-uuid",
+  "name": "helpdesk_api_key",
+  "service": "zendesk"
+}
+```
+
+---
+
+### `DELETE /api/credentials?id={id}`
+
+Delete a credential by ID. **Requires admin role.**
+
+**Response (200):** `{ "ok": true }`
+
+---
+
+## Users
+
+### `GET /api/users`
+
+List all user accounts. **Requires admin role.**
+
+**Response:**
+
+```json
+{
+  "users": [
+    {
+      "id": "user-uuid",
+      "email": "admin@company.com",
+      "name": "Admin User",
+      "role": "owner",
+      "createdAt": "2026-04-01T08:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+## Setup
+
+### `GET /api/setup`
+
+Check whether the initial setup is needed (returns true if no users exist).
+
+**Authentication:** None required
+
+**Response:**
+
+```json
+{
+  "needsSetup": true
+}
+```
+
+---
+
+### `POST /api/setup`
+
+Create the first owner account. Only works if no users exist.
+
+**Authentication:** None required
+
+**Request body:**
+
+```json
+{
+  "name": "Admin User",
+  "email": "admin@company.com",
+  "password": "securepassword123"
+}
+```
+
+**Response (200):**
+
+```json
+{
+  "success": true,
+  "message": "Owner account created successfully"
+}
+```
+
+**Response (403):** `{ "error": "Setup has already been completed" }`
+
+---
+
+## License
+
+### `GET /api/license`
+
+Get the current license status and feature limits.
+
+**Response (no license):**
+
+```json
+{
+  "active": false,
+  "tier": "community",
+  "limits": {
+    "maxUsers": 3,
+    "maxTemplates": 10,
+    "ssoEnabled": false,
+    "cloudLlm": false,
+    "prioritySupport": false
+  }
+}
+```
+
+**Response (active license):**
+
+```json
+{
+  "active": true,
+  "tier": "pro",
+  "orgName": "Acme Corp",
+  "expiresAt": "2027-04-01T00:00:00.000Z",
+  "features": ["sso", "cloud-llm"],
+  "limits": {
+    "maxUsers": 25,
+    "maxTemplates": 100,
+    "ssoEnabled": true,
+    "cloudLlm": true,
+    "prioritySupport": false
+  }
+}
+```
+
+**License tiers:**
+
+| Tier | Max Users | Max Templates | SSO | Cloud LLM | Priority Support |
+| ---- | --------- | ------------- | --- | --------- | ---------------- |
+| Community | 3 | 10 | No | No | No |
+| Pro | 25 | 100 | Yes | Yes | No |
+| Enterprise | Unlimited | Unlimited | Yes | Yes | Yes |
+
+---
+
+### `POST /api/license`
+
+Activate a license key. **Requires owner role.** The key is an RSA-signed JWT containing the tier, org name, features, and expiration date.
+
+**Request body:**
+
+```json
+{
+  "key": "eyJhbGciOiJSUzI1NiJ9..."
+}
+```
+
+**Response (200):**
+
+```json
+{
+  "valid": true,
+  "tier": "pro",
+  "orgName": "Acme Corp",
+  "expiresAt": "2027-04-01T00:00:00.000Z",
+  "features": ["sso", "cloud-llm"],
+  "limits": { ... }
+}
+```
+
+**Response (400):** `{ "valid": false, "error": "License expired" }`
+
+---
+
+## Telemetry
+
+### `GET /api/telemetry`
+
+Preview what telemetry data would be collected and check the current opt-in status.
+
+**Response:**
+
+```json
+{
+  "enabled": false,
+  "preview": {
+    "version": "0.1.0",
+    "platform": "darwin",
+    "nodeVersion": "v22.0.0",
+    "templateCount": 5,
+    "userCount": 2,
+    "licenseTier": "community"
+  },
+  "description": "This is exactly what would be sent. No task content, credentials, PII, or memory is ever collected."
+}
+```
+
+Telemetry collects only anonymous usage metrics: version, platform, template count, user count, and license tier. Task content, credentials, user data, and memory are never included.
+
+---
+
+### `PUT /api/telemetry`
+
+Enable or disable telemetry. **Requires owner role.**
+
+**Request body:**
+
+```json
+{
+  "enabled": true
+}
+```
+
+**Response (200):**
+
+```json
+{
+  "enabled": true,
+  "message": "Telemetry enabled. Thank you for helping improve DURANDAL."
+}
+```
+
+---
+
+## Schedules
+
+### `GET /api/schedules`
+
+List all schedules. Optionally filter by template ID using the `templateId` query parameter.
+
+**Query parameters:**
+- `templateId` (optional) -- Filter by template ID
+
+**Response:**
+
+```json
+{
+  "schedules": [
+    {
+      "id": "schedule-uuid",
+      "templateId": "email-triage",
+      "parameters": "{\"email_account\":\"you@example.com\"}",
+      "cronExpression": "0 8,12,16 * * 1-5",
+      "enabled": true,
+      "lastRun": null,
+      "nextRun": "2026-04-04T08:00:00.000Z",
+      "createdBy": "user-uuid",
+      "createdAt": "2026-04-01T09:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### `POST /api/schedules`
+
+Create a new schedule.
+
+**Request body:**
+
+```json
+{
+  "templateId": "email-triage",
+  "cronExpression": "0 8,12,16 * * 1-5",
+  "parameters": {
+    "email_account": "you@example.com",
+    "response_tone": "professional"
+  }
+}
+```
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `templateId` | string | Yes | Template to schedule |
+| `cronExpression` | string | Yes | Standard 5-field cron expression |
+| `parameters` | object | No | Template parameters as key-value pairs |
+
+**Response (201):**
+
+```json
+{
+  "schedule": {
+    "id": "schedule-uuid",
+    "templateId": "email-triage",
+    "cronExpression": "0 8,12,16 * * 1-5",
+    "parameters": "{\"email_account\":\"you@example.com\",\"response_tone\":\"professional\"}",
+    "enabled": true,
+    "nextRun": "2026-04-04T08:00:00.000Z",
+    "createdBy": "user-uuid",
+    "createdAt": "2026-04-04T10:00:00.000Z"
+  }
+}
+```
+
+**Response (400):** `{ "error": "Invalid cron expression: ..." }`
+
+---
+
+### `GET /api/schedules/{id}`
+
+Get a single schedule by ID.
+
+**Response (200):** Full schedule object
+
+**Response (404):** `{ "error": "Schedule not found" }`
+
+---
+
+### `PUT /api/schedules/{id}`
+
+Update a schedule. All fields are optional -- include only the ones you want to change.
+
+**Request body:**
+
+```json
+{
+  "enabled": false,
+  "cronExpression": "0 9 * * 1-5",
+  "parameters": {
+    "email_account": "new@example.com"
+  }
+}
+```
+
+**Response (200):** Updated schedule object
+
+---
+
+### `DELETE /api/schedules/{id}`
+
+Delete a schedule.
+
+**Response (200):** `{ "deleted": true }`
+
+**Response (404):** `{ "error": "Schedule not found" }`
+
+---
+
+## Audit Log
+
+### `GET /api/audit`
+
+Retrieve the most recent 100 audit log entries, sorted by timestamp descending.
+
+**Response:**
+
+```json
+{
+  "entries": [
+    {
+      "id": "audit-uuid",
+      "timestamp": "2026-04-01T09:05:00.000Z",
+      "actor": "admin@company.com",
+      "action": "credential.create",
+      "resource": "credential:cred-uuid",
+      "details": "zendesk/helpdesk_api_key"
+    }
+  ]
+}
+```
+
+**Audit action types:**
+- `task.create`, `task.cancel` -- Task lifecycle
+- `template.run`, `template.approval_required`, `template.step_failed`, `template.completed` -- Template execution
+- `approval.approve`, `approval.reject` -- Approval decisions
+- `credential.create`, `credential.delete` -- Credential management
+- `schedule.create`, `schedule.update`, `schedule.delete` -- Schedule management
+- `memory.update` -- Agent memory changes
+- `user.create` -- User account creation
+
+---
+
+## Error Responses
+
+All error responses follow a consistent format:
+
+```json
+{
+  "error": "Human-readable error message"
+}
+```
+
+Common HTTP status codes:
+- `400` -- Bad request (missing fields, invalid input)
+- `401` -- Unauthorized (not authenticated)
+- `403` -- Forbidden (insufficient role permissions)
+- `404` -- Resource not found
+- `409` -- Conflict (e.g., approval already resolved)
+- `500` -- Internal server error

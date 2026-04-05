@@ -1,0 +1,210 @@
+# Getting Started
+
+This guide walks you through installing DURANDAL, creating your first account, and running your first automated template.
+
+## System Requirements
+
+| Component | Minimum | Recommended |
+| --------- | ------- | ----------- |
+| CPU | 4 cores | 8+ cores |
+| RAM | 8 GB | 16 GB |
+| Disk | 20 GB free | 50 GB SSD |
+| Docker | v24+ (with Compose v2) | v27+ |
+| Node.js | v22+ | v22 LTS |
+| pnpm | v10+ | v10.8+ |
+| OS | macOS 13+, Ubuntu 22.04+, WSL 2 | macOS 14+ / Ubuntu 24.04 |
+
+If you plan to run larger models locally via Ollama, 16 GB of RAM is the practical minimum. For 13B-parameter models, 32 GB is recommended.
+
+## Installation
+
+### Option A: One-Command Installer (Recommended)
+
+The installer detects your platform (macOS ARM/x86, Linux AMD64/ARM64, WSL), verifies prerequisites, clones the repository, generates secrets, and starts all services:
+
+```bash
+curl -fsSL https://durandal.ai/install | sh
+```
+
+The script will:
+1. Detect your operating system and architecture
+2. Check for Docker, Node.js 22+, and pnpm 10+
+3. Clone the DURANDAL repository
+4. Generate a secure `NEXTAUTH_SECRET` and `DURANDAL_API_TOKEN`
+5. Build all packages
+6. Pull the Ollama model (`hermes3:8b` by default)
+7. Start all services via Docker Compose
+
+### Option B: Manual Installation
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/your-org/durandal.git
+cd durandal
+
+# 2. Install dependencies and build
+pnpm install
+pnpm build
+
+# 3. Configure environment
+cd docker
+cp .env.example .env
+# Edit .env — at minimum, set a strong NEXTAUTH_SECRET:
+#   NEXTAUTH_SECRET=$(openssl rand -base64 32)
+
+# 4. Start services
+docker compose up -d
+
+# 5. Pull the default Ollama model
+docker compose exec ollama ollama pull hermes3:8b
+```
+
+### Verifying the Installation
+
+Check that all services are healthy:
+
+```bash
+docker compose ps
+```
+
+You should see five services running: `dashboard`, `hermes`, `nanoclaw`, `ollama`, and `caddy`.
+
+Verify the health endpoint:
+
+```bash
+curl -k https://localhost/api/health
+```
+
+Expected response:
+
+```json
+{
+  "status": "healthy",
+  "version": "0.1.0",
+  "services": {
+    "hermes": "healthy",
+    "nanoclaw": "healthy"
+  }
+}
+```
+
+## First-Run Setup Wizard
+
+When you open **https://localhost** for the first time, DURANDAL detects that no users exist and presents the setup wizard.
+
+### Step 1: Create Owner Account
+
+Fill in the setup form:
+
+- **Name** -- Your display name
+- **Email** -- Used for login
+- **Password** -- Minimum 8 characters
+
+The first account is automatically assigned the **Owner** role, which has full control over the system including license activation, telemetry settings, and user management.
+
+### Step 2: Sign In
+
+After the owner account is created, you are redirected to the login screen. Sign in with the credentials you just created.
+
+### Step 3: Configure Credentials
+
+Navigate to **Settings > Credentials** in the dashboard sidebar. Add the API keys and credentials needed by the templates you plan to use:
+
+- `helpdesk_api_key` -- for Customer Support Triage
+- `email_imap` / `email_smtp` -- for Email Triage and Invoice Processing
+- `inventory_api_key` -- for Inventory Monitoring
+- `twitter_api_key` / `linkedin_api_key` -- for Social Media
+
+Credentials are encrypted with AES-256-GCM before being stored in the database. Only admins and owners can add or remove credentials.
+
+## Running Your First Template
+
+### From the Dashboard
+
+1. Click **Templates** in the sidebar
+2. Select **Email Triage & Response** (or any template that matches your available credentials)
+3. Fill in the parameter form:
+   - **Email Account**: your email address
+   - **Priority Keywords**: `urgent, asap, deadline` (or customise)
+   - **Response Tone**: select from Professional, Friendly, Concise, or Formal
+4. Click **Run Template**
+5. Watch the task progress through each step in real time
+6. When the "Send responses" step is reached, you will see an **approval request** -- review the drafted emails and click **Approve** or **Reject**
+
+### From the API
+
+```bash
+curl -k -X POST https://localhost/api/templates/email-triage/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "params": {
+      "email_account": "you@example.com",
+      "priority_keywords": "urgent, asap, deadline",
+      "response_tone": "professional",
+      "max_emails": "20"
+    }
+  }'
+```
+
+The response includes a task ID and status:
+
+```json
+{
+  "id": "a1b2c3d4-...",
+  "status": "awaiting_approval",
+  "completedSteps": 3,
+  "awaitingStep": {
+    "index": 3,
+    "name": "Send responses"
+  },
+  "message": "Paused at step 4 \"Send responses\" — human approval required"
+}
+```
+
+### Scheduling a Template
+
+To run a template automatically on a schedule:
+
+```bash
+curl -k -X POST https://localhost/api/schedules \
+  -H "Content-Type: application/json" \
+  -d '{
+    "templateId": "email-triage",
+    "cronExpression": "0 8,12,16 * * 1-5",
+    "parameters": {
+      "email_account": "you@example.com",
+      "response_tone": "professional"
+    }
+  }'
+```
+
+This schedules the Email Triage template to run at 8 AM, 12 PM, and 4 PM on weekdays.
+
+## Dashboard Overview
+
+Once logged in, the dashboard provides these main sections:
+
+- **Tasks** -- View all running, completed, and failed tasks. Click any task to see its step-by-step timeline and output.
+- **Templates** -- Browse the five built-in templates. Each shows its description, required credentials, and parameters. Click "Run" to execute with custom parameters.
+- **Approvals** -- A queue of pending approval requests. Each shows the template step, the prompt that will be executed, and Approve/Reject buttons.
+- **Memory** -- View and edit the Hermes agent's memory files (`MEMORY.md` and `USER.md`). The agent uses these to personalise responses and learn from past interactions.
+- **Schedules** -- Manage cron-based schedules attached to templates. Enable, disable, or modify the cron expression and parameters.
+- **Settings** -- Manage credentials, users, license, telemetry preferences, and view the audit log.
+
+## Development Mode
+
+For local development with hot reload:
+
+```bash
+# From the project root
+pnpm dev
+```
+
+This starts the dashboard on `http://localhost:3001` with Turbo-powered hot reload across all packages. You will still need Docker running for Hermes, NanoClaw, and Ollama services.
+
+## Next Steps
+
+- [Templates](/templates) -- Deep dive into template YAML schema and creating custom templates
+- [API Reference](/api-reference) -- Full REST API documentation
+- [Security](/security) -- Understand the security architecture
+- [Deployment](/deployment) -- Production deployment guides

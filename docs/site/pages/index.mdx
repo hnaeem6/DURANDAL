@@ -1,0 +1,64 @@
+# DURANDAL
+
+**Your unbreakable AI workforce. Runs local. Stays private. Gets smarter.**
+
+DURANDAL is a local-first AI automation platform for small businesses. It combines a self-improving AI brain (Hermes Agent) with container-isolated tool execution (NanoClaw) behind a clean web dashboard that non-technical users can operate without writing a single line of code.
+
+## Key Features
+
+- **Local-First AI** -- Runs entirely on your hardware using Ollama and open-weight models. Your data never leaves your network unless you choose to enable cloud LLM providers.
+- **Container Isolation** -- Every tool execution runs inside a sandboxed Docker container with per-step network allowlists, dropped capabilities, and `no-new-privileges` security.
+- **Human-in-the-Loop Approvals** -- Sensitive steps in automation templates pause for human review before proceeding. You always stay in control.
+- **Pre-Built Templates** -- Ship with five production-ready automation templates covering customer support, email triage, invoice processing, inventory monitoring, and social media.
+- **Encrypted Credential Vault** -- API keys and secrets are stored using AES-256-GCM encryption with scrypt key derivation. Plain-text values never touch disk.
+- **Role-Based Access Control** -- Three-tier RBAC model (Owner, Admin, Member) controls who can configure the system, manage credentials, and approve actions.
+- **Audit Logging** -- Every action is recorded in a tamper-evident audit log for compliance and debugging.
+- **Scheduled Automation** -- Attach cron schedules to templates so they run automatically at the times you choose.
+
+## Quick Install
+
+```bash
+curl -fsSL https://durandal.ai/install | sh
+```
+
+Or install manually:
+
+```bash
+git clone https://github.com/your-org/durandal.git
+cd durandal
+pnpm install && pnpm build
+cd docker
+cp .env.example .env    # edit secrets
+docker compose up -d
+```
+
+Open **https://localhost** to create your owner account and start automating.
+
+## System Requirements
+
+| Component | Minimum | Recommended |
+| --------- | ------- | ----------- |
+| CPU | 4 cores | 8+ cores |
+| RAM | 8 GB | 16 GB |
+| Disk | 20 GB free | 50 GB SSD |
+| Docker | v24+ | v27+ |
+| Node.js | v22+ | v22 LTS |
+| OS | macOS 13+, Ubuntu 22.04+, WSL 2 | macOS 14+ / Ubuntu 24.04 |
+
+## Architecture Overview
+
+DURANDAL is composed of three cooperating services:
+
+- **Dashboard** (Next.js) -- The web UI where users create tasks, configure templates, review approvals, and manage credentials.
+- **Hermes** (Python) -- The AI planning and execution brain. It decomposes tasks into steps, routes between LLM providers, and builds reusable skills over time.
+- **NanoClaw** (TypeScript) -- The container-isolated execution engine. Each tool call runs in a fresh Docker container with a scoped network allowlist.
+
+An **Ollama** instance provides local model inference, and **Caddy** handles HTTPS termination with automatic TLS certificates.
+
+## Next Steps
+
+- [Getting Started](/getting-started) -- Install DURANDAL and run your first template
+- [Templates](/templates) -- Explore built-in templates and create your own
+- [API Reference](/api-reference) -- Integrate with the REST API
+- [Security](/security) -- Understand the defense-in-depth architecture
+- [Deployment](/deployment) -- Deploy to production with Docker Compose, GCP, or air-gapped environments

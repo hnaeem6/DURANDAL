@@ -1,0 +1,457 @@
+# Deployment
+
+DURANDAL supports three deployment models: on-premises Docker Compose (the default), Google Cloud Platform with Helm and Terraform, and fully air-gapped offline deployment.
+
+## Docker Compose (On-Premises)
+
+This is the default and recommended deployment for most users. All services run on a single machine using Docker Compose.
+
+### Architecture
+
+The Docker Compose stack includes five services:
+
+| Service | Image | Port | Description |
+| ------- | ----- | ---- | ----------- |
+| `dashboard` | `durandal/dashboard` | 3001 (internal) | Next.js web UI |
+| `hermes` | `durandal/hermes` | 8642 (internal) | AI planning and execution engine |
+| `nanoclaw` | `durandal/nanoclaw` | 7777 | Container-isolated tool execution |
+| `ollama` | `ollama/ollama` | 11434 (internal) | Local model inference |
+| `caddy` | `caddy:2-alpine` | 443, 80 | HTTPS reverse proxy with auto-TLS |
+
+All services communicate over an internal Docker bridge network (`durandal-internal`). Only Caddy (ports 443/80) and NanoClaw (port 7777) are exposed to the host.
+
+### Step-by-Step Setup
+
+```bash
+# 1. Clone and build
+git clone https://github.com/your-org/durandal.git
+cd durandal
+pnpm install
+pnpm build
+
+# 2. Configure environment
+cd docker
+cp .env.example .env
+```
+
+Edit `docker/.env` with production values:
+
+```bash
+# Required: generate with `openssl rand -base64 32`
+NEXTAUTH_SECRET=your-secure-random-secret
+
+# Optional: separate vault encryption key (recommended for production)
+VAULT_MASTER_KEY=another-secure-random-secret
+
+# Optional: shared API token for inter-service communication
+DURANDAL_API_TOKEN=your-api-token
+```
+
+```bash
+# 3. Start all services
+docker compose up -d
+
+# 4. Pull the default model
+docker compose exec ollama ollama pull hermes3:8b
+
+# 5. Verify health
+docker compose ps
+curl -k https://localhost/api/health
+```
+
+### Data Volumes
+
+| Volume | Purpose |
+| ------ | ------- |
+| `durandal-data` | SQLite database, Hermes memory, custom templates |
+| `durandal-ollama-models` | Downloaded Ollama models |
+| `durandal-caddy-data` | TLS certificates |
+| `durandal-caddy-config` | Caddy configuration state |
+
+### Security Hardening
+
+The Docker Compose configuration applies these security controls by default:
+
+- `security_opt: [no-new-privileges:true]` on Hermes and NanoClaw
+- `cap_drop: [ALL]` on Hermes and NanoClaw
+- Internal network isolation (services communicate only via `durandal-internal`)
+- NanoClaw has Docker socket access (required for spawning execution containers)
+
+### GPU Passthrough
+
+To enable GPU inference for Ollama, uncomment the GPU section in `docker/docker-compose.yml`:
+
+```yaml
+ollama:
+  image: ollama/ollama:latest
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - capabilities: [gpu]
+```
+
+This requires the NVIDIA Container Toolkit to be installed on the host.
+
+### Custom Domain
+
+Edit `docker/Caddyfile` to use your domain instead of localhost. Caddy will automatically obtain and renew TLS certificates via Let's Encrypt:
+
+```
+your-domain.com {
+  reverse_proxy dashboard:3001
+}
+```
+
+---
+
+## GCP Deployment
+
+For production deployments on Google Cloud Platform, DURANDAL provides a Helm chart in `deploy/helm/`.
+
+### Prerequisites
+
+- A GKE cluster (Standard or Autopilot)
+- `kubectl` configured to access the cluster
+- `helm` v3 installed
+- Container images pushed to Artifact Registry (or use the default images)
+
+### Helm Chart Structure
+
+```
+deploy/helm/
+  Chart.yaml              # Chart metadata (v0.1.0)
+  values.yaml             # Default configuration
+  templates/
+    _helpers.tpl           # Template helper functions
+    configmap.yaml         # Shared configuration
+    secret.yaml            # Secrets (NEXTAUTH_SECRET, API tokens)
+    pvc.yaml               # Persistent volume claims
+    deployment-dashboard.yaml
+    deployment-hermes.yaml
+    deployment-nanoclaw.yaml
+    deployment-ollama.yaml
+```
+
+### Quick Deploy
+
+```bash
+# Add your container registry
+export REGISTRY=us-docker.pkg.dev/your-project/durandal
+
+# Build and push images
+docker build -t $REGISTRY/dashboard:0.1.0 -f docker/Dockerfile.dashboard .
+docker build -t $REGISTRY/hermes:0.1.0 -f docker/Dockerfile.hermes .
+docker build -t $REGISTRY/nanoclaw:0.1.0 -f docker/Dockerfile.nanoclaw .
+docker push $REGISTRY/dashboard:0.1.0
+docker push $REGISTRY/hermes:0.1.0
+docker push $REGISTRY/nanoclaw:0.1.0
+
+# Deploy with Helm
+helm install durandal deploy/helm/ \
+  --set image.dashboard.repository=$REGISTRY/dashboard \
+  --set image.hermes.repository=$REGISTRY/hermes \
+  --set image.nanoclaw.repository=$REGISTRY/nanoclaw \
+  --set secrets.nextauthSecret=$(openssl rand -base64 32) \
+  --set ingress.hosts[0].host=durandal.your-domain.com
+```
+
+### Configuration
+
+Key values in `deploy/helm/values.yaml`:
+
+```yaml
+# Container images
+image:
+  dashboard:
+    repository: durandal/dashboard
+    tag: "0.1.0"
+  hermes:
+    repository: durandal/hermes
+    tag: "0.1.0"
+  nanoclaw:
+    repository: durandal/nanoclaw
+    tag: "0.1.0"
+
+# Resource requests and limits
+dashboard:
+  resources:
+    requests: { cpu: "100m", memory: "128Mi" }
+    limits:   { cpu: "500m", memory: "512Mi" }
+
+hermes:
+  resources:
+    requests: { cpu: "250m", memory: "256Mi" }
+    limits:   { cpu: "1", memory: "1Gi" }
+
+nanoclaw:
+  resources:
+    requests: { cpu: "100m", memory: "128Mi" }
+    limits:   { cpu: "500m", memory: "512Mi" }
+
+ollama:
+  enabled: true
+  resources:
+    requests: { cpu: "1", memory: "2Gi" }
+    limits:   { cpu: "4", memory: "8Gi" }
+  persistence:
+    size: 20Gi
+
+# Persistent storage for SQLite database and Hermes data
+persistence:
+  enabled: true
+  size: 5Gi
+  accessMode: ReadWriteOnce
+
+# Ingress
+ingress:
+  enabled: true
+  hosts:
+    - host: durandal.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: durandal-tls
+      hosts:
+        - durandal.example.com
+
+# Secrets
+secrets:
+  nextauthSecret: "change-me-in-production"
+  durandalApiToken: ""
+```
+
+### Cloud SQL (Optional)
+
+For production workloads, you can switch from SQLite to Cloud SQL by enabling the `cloudSQL` configuration:
+
+```yaml
+cloudSQL:
+  enabled: true
+  host: "/cloudsql/your-project:us-central1:durandal-db"
+  database: "durandal"
+  user: "durandal"
+  port: 5432
+```
+
+### Scaling Considerations
+
+- **Dashboard** can run multiple replicas behind the ingress load balancer
+- **Hermes** should run as a single replica (it manages local state)
+- **NanoClaw** can scale horizontally but requires Docker socket access on each node
+- **Ollama** should run on a GPU-enabled node for acceptable performance
+
+---
+
+## Air-Gap Deployment
+
+For environments with no internet connectivity (classified networks, industrial facilities, highly regulated environments), DURANDAL can be deployed fully offline.
+
+### Preparation (On Connected Machine)
+
+#### 1. Build and Save Docker Images
+
+```bash
+cd durandal
+
+# Build all images
+docker compose -f docker/docker-compose.yml build
+
+# Save images to tar files
+docker save durandal-dashboard:latest | gzip > durandal-dashboard.tar.gz
+docker save durandal-hermes:latest | gzip > durandal-hermes.tar.gz
+docker save durandal-nanoclaw:latest | gzip > durandal-nanoclaw.tar.gz
+docker save ollama/ollama:latest | gzip > ollama.tar.gz
+docker save caddy:2-alpine | gzip > caddy.tar.gz
+```
+
+#### 2. Pre-Download Ollama Models
+
+```bash
+# Pull the model
+docker compose exec ollama ollama pull hermes3:8b
+
+# Export the model volume
+docker run --rm \
+  -v durandal-ollama-models:/data \
+  -v $(pwd):/backup \
+  alpine tar czf /backup/ollama-models.tar.gz -C /data .
+```
+
+#### 3. Package Everything
+
+Assemble the air-gap bundle:
+
+```bash
+mkdir durandal-airgap
+cp durandal-dashboard.tar.gz durandal-airgap/
+cp durandal-hermes.tar.gz durandal-airgap/
+cp durandal-nanoclaw.tar.gz durandal-airgap/
+cp ollama.tar.gz durandal-airgap/
+cp caddy.tar.gz durandal-airgap/
+cp ollama-models.tar.gz durandal-airgap/
+cp -r docker/ durandal-airgap/docker/
+cp -r templates/ durandal-airgap/templates/
+
+tar czf durandal-airgap-bundle.tar.gz durandal-airgap/
+```
+
+Transfer `durandal-airgap-bundle.tar.gz` to the air-gapped machine via USB drive, secure file transfer, or other approved channel.
+
+### Installation (On Air-Gapped Machine)
+
+```bash
+# 1. Extract the bundle
+tar xzf durandal-airgap-bundle.tar.gz
+cd durandal-airgap
+
+# 2. Load Docker images
+gunzip -c durandal-dashboard.tar.gz | docker load
+gunzip -c durandal-hermes.tar.gz | docker load
+gunzip -c durandal-nanoclaw.tar.gz | docker load
+gunzip -c ollama.tar.gz | docker load
+gunzip -c caddy.tar.gz | docker load
+
+# 3. Restore Ollama models
+docker volume create durandal-ollama-models
+docker run --rm \
+  -v durandal-ollama-models:/data \
+  -v $(pwd):/backup \
+  alpine tar xzf /backup/ollama-models.tar.gz -C /data
+
+# 4. Configure and start
+cd docker
+cp .env.example .env
+# Edit .env with your secrets
+docker compose up -d
+```
+
+### USB Model Loading
+
+To add additional Ollama models to an air-gapped installation:
+
+1. On a connected machine: `ollama pull <model-name>`
+2. Export the model directory from the Ollama volume
+3. Transfer via USB
+4. Import into the air-gapped Ollama volume using the `docker run ... alpine tar xzf` pattern above
+
+---
+
+## Backup and Restore
+
+DURANDAL includes backup and restore scripts in the `scripts/` directory.
+
+### Creating a Backup
+
+```bash
+bash scripts/backup.sh [output-directory]
+```
+
+This creates a timestamped archive (`durandal-backup-YYYY-MM-DD-HHMMSS.tar.gz`) containing:
+
+- SQLite databases from the `durandal-data` volume
+- Hermes memory files (`MEMORY.md`, `USER.md`)
+- Custom templates
+- `.env` file (with secret values masked)
+- Docker Compose configuration snapshot
+
+The backup script will pause the dashboard service briefly to ensure database consistency, then restart it automatically.
+
+Default output location is the project root. Pass a directory path to save elsewhere.
+
+### Restoring from Backup
+
+```bash
+bash scripts/restore.sh /path/to/durandal-backup-YYYY-MM-DD-HHMMSS.tar.gz
+```
+
+The restore script:
+
+1. Validates the backup archive
+2. Stops all running DURANDAL services
+3. Extracts the backup contents
+4. Restores the SQLite database to the `durandal-data` volume
+5. Restores Hermes memory files
+6. Restores custom templates
+7. Restarts all services
+8. Verifies health
+
+**Important:** The restore script does **not** restore the `.env` file or Ollama models. You must reconfigure `.env` secrets and re-pull or re-import models separately.
+
+### Scheduled Backups
+
+To run backups automatically, add a cron job on the host machine:
+
+```bash
+# Daily backup at 2 AM, keep 7 days of backups
+0 2 * * * /path/to/durandal/scripts/backup.sh /backups/durandal && find /backups/durandal -name "durandal-backup-*.tar.gz" -mtime +7 -delete
+```
+
+---
+
+## Update Process
+
+### Updating Docker Compose Deployment
+
+```bash
+cd durandal
+
+# 1. Pull latest code
+git pull origin main
+
+# 2. Rebuild packages
+pnpm install
+pnpm build
+
+# 3. Create a backup before updating
+bash scripts/backup.sh
+
+# 4. Rebuild and restart containers
+cd docker
+docker compose build
+docker compose up -d
+
+# 5. Verify health
+curl -k https://localhost/api/health
+```
+
+### Updating Helm Deployment
+
+```bash
+# 1. Build and push updated images
+docker build -t $REGISTRY/dashboard:0.2.0 -f docker/Dockerfile.dashboard .
+docker build -t $REGISTRY/hermes:0.2.0 -f docker/Dockerfile.hermes .
+docker build -t $REGISTRY/nanoclaw:0.2.0 -f docker/Dockerfile.nanoclaw .
+docker push $REGISTRY/dashboard:0.2.0
+docker push $REGISTRY/hermes:0.2.0
+docker push $REGISTRY/nanoclaw:0.2.0
+
+# 2. Upgrade the Helm release
+helm upgrade durandal deploy/helm/ \
+  --set image.dashboard.tag=0.2.0 \
+  --set image.hermes.tag=0.2.0 \
+  --set image.nanoclaw.tag=0.2.0
+```
+
+### Updating Ollama Models
+
+```bash
+# Docker Compose
+docker compose exec ollama ollama pull hermes3:8b
+
+# Kubernetes
+kubectl exec -it deployment/durandal-ollama -- ollama pull hermes3:8b
+```
+
+### Rollback
+
+If an update causes issues:
+
+```bash
+# Docker Compose: restore from backup
+bash scripts/restore.sh /backups/durandal/durandal-backup-latest.tar.gz
+
+# Helm: rollback to previous revision
+helm rollback durandal
+```
