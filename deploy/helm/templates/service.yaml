@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "durandal.fullname" . }}-dashboard
+  labels:
+    {{- include "durandal.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dashboard
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.dashboard.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "durandal.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: dashboard
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "durandal.fullname" . }}-hermes
+  labels:
+    {{- include "durandal.labels" . | nindent 4 }}
+    app.kubernetes.io/component: hermes
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.hermes.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "durandal.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: hermes
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "durandal.fullname" . }}-nanoclaw
+  labels:
+    {{- include "durandal.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nanoclaw
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.nanoclaw.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "durandal.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: nanoclaw
+---
+{{- if .Values.ollama.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "durandal.fullname" . }}-ollama
+  labels:
+    {{- include "durandal.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ollama
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.ollama.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "durandal.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: ollama
+{{- end }}

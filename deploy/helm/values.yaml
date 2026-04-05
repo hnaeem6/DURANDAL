@@ -1,0 +1,118 @@
+# -- Global settings
+nameOverride: ""
+fullnameOverride: ""
+
+# -- Container images
+image:
+  dashboard:
+    repository: durandal/dashboard
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  hermes:
+    repository: durandal/hermes
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  nanoclaw:
+    repository: durandal/nanoclaw
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# -- Dashboard configuration
+dashboard:
+  replicaCount: 1
+  port: 3001
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+
+# -- Hermes configuration
+hermes:
+  replicaCount: 1
+  port: 8642
+  resources:
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+    requests:
+      cpu: "250m"
+      memory: "256Mi"
+
+# -- NanoClaw configuration
+nanoclaw:
+  replicaCount: 1
+  port: 7777
+  mountDockerSocket: true
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+
+# -- Ollama configuration
+ollama:
+  enabled: true
+  image:
+    repository: ollama/ollama
+    tag: latest
+    pullPolicy: IfNotPresent
+  port: 11434
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: "4"
+      memory: "8Gi"
+    requests:
+      cpu: "1"
+      memory: "2Gi"
+  persistence:
+    size: 20Gi
+    storageClass: ""
+
+# -- Persistence
+persistence:
+  enabled: true
+  size: 5Gi
+  storageClass: ""
+  accessMode: ReadWriteOnce
+
+# -- Cloud SQL (for production; replaces SQLite)
+cloudSQL:
+  enabled: false
+  host: ""
+  database: "durandal"
+  user: "durandal"
+  # password is read from the secret
+  port: 5432
+
+# -- Ingress
+ingress:
+  enabled: true
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: gce
+    # networking.gke.io/managed-certificates: durandal-cert
+  hosts:
+    - host: durandal.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: durandal-tls
+      hosts:
+        - durandal.example.com
+
+# -- Secrets (provide via --set or external secret manager)
+secrets:
+  nextauthSecret: "change-me-in-production"
+  durandalApiToken: ""
+
+# -- Extra environment variables applied to all pods
+extraEnv: []

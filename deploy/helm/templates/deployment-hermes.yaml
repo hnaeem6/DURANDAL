@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "durandal.fullname" . }}-hermes
+  labels:
+    {{- include "durandal.labels" . | nindent 4 }}
+    app.kubernetes.io/component: hermes
+spec:
+  replicas: {{ .Values.hermes.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "durandal.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: hermes
+  template:
+    metadata:
+      labels:
+        {{- include "durandal.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: hermes
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: hermes
+          image: "{{ .Values.image.hermes.repository }}:{{ .Values.image.hermes.tag }}"
+          imagePullPolicy: {{ .Values.image.hermes.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: http
+              containerPort: {{ .Values.hermes.port }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "durandal.fullname" . }}-config
+            - secretRef:
+                name: {{ include "durandal.fullname" . }}-secret
+          {{- with .Values.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          {{- if .Values.persistence.enabled }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          {{- end }}
+          resources:
+            {{- toYaml .Values.hermes.resources | nindent 12 }}
+      {{- if .Values.persistence.enabled }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "durandal.fullname" . }}-data
+      {{- end }}

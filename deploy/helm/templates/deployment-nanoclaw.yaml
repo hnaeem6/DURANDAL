@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "durandal.fullname" . }}-nanoclaw
+  labels:
+    {{- include "durandal.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nanoclaw
+spec:
+  replicas: {{ .Values.nanoclaw.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "durandal.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: nanoclaw
+  template:
+    metadata:
+      labels:
+        {{- include "durandal.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: nanoclaw
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: nanoclaw
+          image: "{{ .Values.image.nanoclaw.repository }}:{{ .Values.image.nanoclaw.tag }}"
+          imagePullPolicy: {{ .Values.image.nanoclaw.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: http
+              containerPort: {{ .Values.nanoclaw.port }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "durandal.fullname" . }}-config
+            - secretRef:
+                name: {{ include "durandal.fullname" . }}-secret
+          {{- with .Values.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            {{- if .Values.persistence.enabled }}
+            - name: data
+              mountPath: /data
+            {{- end }}
+            {{- if .Values.nanoclaw.mountDockerSocket }}
+            - name: docker-socket
+              mountPath: /var/run/docker.sock
+            {{- end }}
+          resources:
+            {{- toYaml .Values.nanoclaw.resources | nindent 12 }}
+      volumes:
+        {{- if .Values.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "durandal.fullname" . }}-data
+        {{- end }}
+        {{- if .Values.nanoclaw.mountDockerSocket }}
+        - name: docker-socket
+          hostPath:
+            path: /var/run/docker.sock
+            type: Socket
+        {{- end }}
