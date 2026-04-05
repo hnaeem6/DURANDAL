@@ -1,0 +1,112 @@
+id: email-triage
+name: Email Triage & Response
+description: >-
+  Fetch unread emails, classify each by urgency and topic, draft context-aware
+  responses, and send them on your behalf. The final send step requires approval
+  so you can review every outgoing message before it leaves your inbox.
+category: communication
+icon: mail
+
+requiredCredentials:
+  - email_imap
+  - email_smtp
+
+parameters:
+  - name: email_account
+    label: Email Account
+    type: email
+    required: true
+    description: The email address to triage
+  - name: priority_keywords
+    label: Priority Keywords
+    type: string
+    required: false
+    default: "urgent, asap, deadline, critical, important"
+    description: Comma-separated keywords that signal high priority
+  - name: auto_label
+    label: Auto-Label Messages
+    type: boolean
+    required: false
+    default: true
+    description: Whether to apply category labels to triaged messages
+  - name: response_tone
+    label: Response Tone
+    type: select
+    required: false
+    default: professional
+    description: Tone to use when drafting replies
+    options:
+      - professional
+      - friendly
+      - concise
+      - formal
+  - name: max_emails
+    label: Max Emails per Run
+    type: number
+    required: false
+    default: 50
+    description: Maximum number of unread emails to process in a single run
+
+steps:
+  - name: Fetch unread emails
+    tool: nanoclaw_execute
+    prompt: >-
+      Connect to the IMAP mailbox at {{email_account}} and retrieve up to
+      {{max_emails}} unread messages from the INBOX. For each message extract:
+      message_id, from, to, subject, date, body_text (plain text), and whether
+      it has attachments. Return the results as a JSON array sorted by date
+      descending.
+    requiresApproval: false
+    networkAllowlist:
+      - "*.gmail.com"
+      - "*.outlook.com"
+      - "imap.*"
+    timeout: 120000
+
+  - name: Classify and prioritise
+    tool: nanoclaw_execute
+    prompt: >-
+      For each email from the previous step, classify it into exactly one
+      category: meeting, action_required, fyi, newsletter, or spam. Assign a
+      priority of high, medium, or low. Use these priority keywords to help
+      identify high-priority messages: {{priority_keywords}}. If {{auto_label}}
+      is true, include an imap_label field to apply. Return a JSON array with
+      the original fields plus: category, priority, and imap_label.
+    requiresApproval: false
+    networkAllowlist: []
+    timeout: 60000
+
+  - name: Draft responses
+    tool: nanoclaw_execute
+    prompt: >-
+      For each email classified as action_required or meeting, draft a
+      {{response_tone}} reply. The reply should directly address the sender's
+      request, propose next steps where appropriate, and be ready to send. For
+      fyi emails, draft a brief acknowledgement. Skip newsletters and spam.
+      Return a JSON array of objects with: message_id, to, subject (prefixed
+      with Re:), and draft_body.
+    requiresApproval: false
+    networkAllowlist: []
+    timeout: 180000
+
+  - name: Send responses
+    tool: nanoclaw_execute
+    prompt: >-
+      Using SMTP credentials for {{email_account}}, send each drafted response
+      from the previous step. After sending, mark the original message as read
+      via IMAP and apply any imap_label tags. Provide a summary of: emails
+      sent, emails labelled, and any delivery errors.
+    requiresApproval: true
+    networkAllowlist:
+      - "*.gmail.com"
+      - "*.outlook.com"
+      - "smtp.*"
+    timeout: 120000
+
+schedule: "0 8,12,16 * * 1-5"
+
+networkAllowlist:
+  - "*.gmail.com"
+  - "*.outlook.com"
+  - "imap.*"
+  - "smtp.*"

@@ -1,0 +1,104 @@
+id: inventory-alerts
+name: Inventory Monitoring & Reorder Alerts
+description: >-
+  Check current inventory levels against minimum thresholds, generate smart
+  reorder suggestions based on historical demand, and send alerts to your team.
+  Alert delivery requires approval to prevent notification fatigue.
+category: operations
+icon: package-search
+
+requiredCredentials:
+  - inventory_api_key
+  - notification_webhook
+
+parameters:
+  - name: inventory_endpoint
+    label: Inventory System URL
+    type: url
+    required: true
+    description: Base URL of your inventory management system API
+  - name: low_stock_threshold
+    label: Low Stock Threshold (%)
+    type: number
+    required: false
+    default: 20
+    description: Percentage of max capacity below which an item is flagged
+  - name: alert_channel
+    label: Alert Channel
+    type: select
+    required: false
+    default: slack
+    description: Where to send reorder alerts
+    options:
+      - slack
+      - email
+      - teams
+      - webhook
+  - name: alert_recipients
+    label: Alert Recipients
+    type: string
+    required: true
+    description: Comma-separated emails or channel IDs to receive alerts
+  - name: webhook_url
+    label: Notification Webhook URL
+    type: url
+    required: true
+    description: Webhook endpoint for sending alert notifications
+
+steps:
+  - name: Check inventory levels
+    tool: nanoclaw_execute
+    prompt: >-
+      Query the inventory API at {{inventory_endpoint}}/api/products to retrieve
+      all active SKUs and their current stock levels, maximum capacity, and
+      last restocked date. Flag any item whose current level is at or below
+      {{low_stock_threshold}}% of its max capacity. Return a JSON object with:
+      total_skus, healthy_count, low_stock_items (array of: sku, name,
+      current_level, max_capacity, percentage, last_restocked).
+    requiresApproval: false
+    networkAllowlist:
+      - "{{inventory_endpoint}}"
+    timeout: 60000
+
+  - name: Generate reorder suggestions
+    tool: nanoclaw_execute
+    prompt: >-
+      For each low-stock item from the previous step, query
+      {{inventory_endpoint}}/api/products/{sku}/history to get the last 90 days
+      of sales data. Calculate the average daily demand and estimate days until
+      stockout. Suggest a reorder quantity based on a 30-day target stock level.
+      Return a JSON array of objects with: sku, name, current_level,
+      avg_daily_demand, days_until_stockout, suggested_reorder_qty, estimated
+      cost (if pricing data is available), and urgency (critical if <3 days,
+      high if <7, medium otherwise).
+    requiresApproval: false
+    networkAllowlist:
+      - "{{inventory_endpoint}}"
+    timeout: 120000
+
+  - name: Send reorder alerts
+    tool: nanoclaw_execute
+    prompt: >-
+      Format the reorder suggestions into a clear, actionable alert. Group items
+      by urgency (critical first). Include a summary header with total items
+      flagged and most urgent items.
+
+      Send the alert to {{alert_recipients}} via {{alert_channel}} using the
+      webhook at {{webhook_url}}. For Slack, format as a rich Block Kit message.
+      For email, format as a clean HTML table. For Teams, use an Adaptive Card.
+      For webhook, send raw JSON.
+
+      Return a delivery confirmation with: channel, recipients_notified, and
+      delivery_status.
+    requiresApproval: true
+    networkAllowlist:
+      - "{{webhook_url}}"
+      - "hooks.slack.com"
+      - "outlook.office.com"
+    timeout: 60000
+
+schedule: "0 7 * * *"
+
+networkAllowlist:
+  - "hooks.slack.com"
+  - "outlook.office.com"

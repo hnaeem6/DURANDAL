@@ -1,0 +1,123 @@
+id: customer-support
+name: Customer Support Triage
+description: >-
+  Fetch new support tickets, categorise them by type and urgency, draft
+  appropriate responses, and send replies or escalate complex issues to a human
+  agent. The send/escalate step requires approval to ensure quality control.
+category: support
+icon: headphones
+
+requiredCredentials:
+  - helpdesk_api_key
+  - email_smtp
+
+parameters:
+  - name: helpdesk_endpoint
+    label: Helpdesk API URL
+    type: url
+    required: true
+    description: Base URL of your helpdesk or ticketing system API
+  - name: support_email
+    label: Support Email
+    type: email
+    required: true
+    description: The email address support replies are sent from
+  - name: escalation_team
+    label: Escalation Team
+    type: string
+    required: false
+    default: tier-2
+    description: Team or queue name to escalate complex tickets to
+  - name: sla_hours
+    label: SLA Response Time (hours)
+    type: number
+    required: false
+    default: 4
+    description: Target response time in hours for SLA tracking
+  - name: knowledge_base_url
+    label: Knowledge Base URL
+    type: url
+    required: false
+    description: URL of your knowledge base for referencing help articles
+
+steps:
+  - name: Fetch new tickets
+    tool: nanoclaw_execute
+    prompt: >-
+      Query {{helpdesk_endpoint}}/api/tickets?status=open&sort=created_asc to
+      retrieve all open support tickets that have not yet received a response.
+      For each ticket, extract: ticket_id, customer_email, customer_name,
+      subject, body, created_at, attachments (count), and any tags. Calculate
+      hours_since_created and flag any ticket that has exceeded the
+      {{sla_hours}}-hour SLA. Return a JSON array sorted by creation time.
+    requiresApproval: false
+    networkAllowlist:
+      - "{{helpdesk_endpoint}}"
+    timeout: 60000
+
+  - name: Categorise tickets
+    tool: nanoclaw_execute
+    prompt: >-
+      For each ticket from the previous step, classify it into exactly one
+      category: billing, technical, account, feature_request, bug_report, or
+      general_inquiry. Assign a priority: critical, high, medium, or low.
+      Determine if the ticket can be resolved with a templated response
+      (auto_resolvable: true) or needs human intervention
+      (auto_resolvable: false). Tickets about data loss, security, or account
+      compromise must always be flagged for escalation. Return a JSON array
+      with the original fields plus: category, priority, auto_resolvable,
+      escalate (boolean), and reasoning (brief explanation of classification).
+    requiresApproval: false
+    networkAllowlist: []
+    timeout: 90000
+
+  - name: Draft responses
+    tool: nanoclaw_execute
+    prompt: >-
+      For each auto-resolvable ticket, draft a helpful, empathetic support
+      response that addresses the customer's issue directly. If
+      {{knowledge_base_url}} is provided, include relevant article links. Use
+      the customer's name ({{customer_name}} from ticket data).
+
+      For tickets marked for escalation, draft an acknowledgement message
+      letting the customer know their issue is being reviewed by the
+      {{escalation_team}} team and provide an estimated response time based on
+      the {{sla_hours}}-hour SLA.
+
+      Return a JSON array of objects with: ticket_id, customer_email, subject
+      (prefixed with Re:), draft_body, action (reply or escalate), and
+      escalation_note (for escalated tickets only).
+    requiresApproval: false
+    networkAllowlist:
+      - "{{knowledge_base_url}}"
+    timeout: 180000
+
+  - name: Send replies and escalate
+    tool: nanoclaw_execute
+    prompt: >-
+      For tickets with action "reply": send the drafted response from
+      {{support_email}} to the customer's email and update the ticket status to
+      "responded" via {{helpdesk_endpoint}}/api/tickets/{ticket_id}.
+
+      For tickets with action "escalate": send the acknowledgement to the
+      customer, then reassign the ticket to the {{escalation_team}} queue via
+      {{helpdesk_endpoint}}/api/tickets/{ticket_id}/assign with the
+      escalation_note attached as an internal comment.
+
+      Return a summary with: total_processed, replies_sent, tickets_escalated,
+      sla_breaches (count of tickets that exceeded {{sla_hours}} hours), and
+      any errors.
+    requiresApproval: true
+    networkAllowlist:
+      - "{{helpdesk_endpoint}}"
+      - "smtp.*"
+      - "*.gmail.com"
+      - "*.outlook.com"
+    timeout: 120000
+
+schedule: "*/30 9-17 * * 1-5"
+
+networkAllowlist:
+  - "smtp.*"
+  - "*.gmail.com"
+  - "*.outlook.com"

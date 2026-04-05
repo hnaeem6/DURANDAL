@@ -1,0 +1,95 @@
+id: social-media
+name: Social Media Post Generator
+description: >-
+  Generate platform-specific social media posts from a topic or brief, then
+  review and publish them. Supports Twitter/X, LinkedIn, and Instagram caption
+  formats. Publishing requires approval so you control what goes live.
+category: marketing
+icon: share-2
+
+requiredCredentials:
+  - twitter_api_key
+  - linkedin_api_key
+
+parameters:
+  - name: topic
+    label: Post Topic
+    type: string
+    required: true
+    description: The subject or brief to generate posts about
+  - name: platforms
+    label: Target Platforms
+    type: string
+    required: false
+    default: "twitter, linkedin"
+    description: Comma-separated list of platforms (twitter, linkedin, instagram)
+  - name: brand_voice
+    label: Brand Voice
+    type: select
+    required: false
+    default: professional
+    description: The tone and style of the generated posts
+    options:
+      - professional
+      - casual
+      - witty
+      - inspirational
+      - technical
+  - name: hashtag_count
+    label: Max Hashtags
+    type: number
+    required: false
+    default: 5
+    description: Maximum number of hashtags to include per post
+  - name: include_cta
+    label: Include Call-to-Action
+    type: boolean
+    required: false
+    default: true
+    description: Whether to include a call-to-action in each post
+
+steps:
+  - name: Generate platform-specific posts
+    tool: nanoclaw_execute
+    prompt: >-
+      Create social media posts about the following topic: "{{topic}}".
+      Generate one post for each of these platforms: {{platforms}}. Use a
+      {{brand_voice}} brand voice. Include up to {{hashtag_count}} relevant
+      hashtags per post. If {{include_cta}} is true, include a clear
+      call-to-action.
+
+      Platform constraints:
+      - twitter: max 280 characters, punchy and concise
+      - linkedin: 500-1300 characters, professional storytelling, line breaks
+      - instagram: caption style, emoji-friendly, hashtags at the end
+
+      Return a JSON array of objects with: platform, content, hashtags (array),
+      character_count, and suggested_posting_time (ISO 8601).
+    requiresApproval: false
+    networkAllowlist: []
+    timeout: 120000
+
+  - name: Review and publish
+    tool: nanoclaw_execute
+    prompt: >-
+      Publish the generated posts from the previous step to their respective
+      platforms using the available API credentials. For twitter, use the
+      Twitter/X v2 API. For linkedin, use the LinkedIn Share API. For
+      instagram, prepare the caption (actual posting requires manual upload or
+      a connected scheduling tool). Return a summary of: posts published,
+      platform responses (post IDs or URLs), and any errors.
+    requiresApproval: true
+    networkAllowlist:
+      - "api.twitter.com"
+      - "api.x.com"
+      - "api.linkedin.com"
+      - "graph.facebook.com"
+    timeout: 60000
+
+schedule: null
+
+networkAllowlist:
+  - "api.twitter.com"
+  - "api.x.com"
+  - "api.linkedin.com"
+  - "graph.facebook.com"

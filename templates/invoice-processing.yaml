@@ -1,0 +1,109 @@
+id: invoice-processing
+name: Invoice Processing
+description: >-
+  Automatically check email for incoming invoices, extract line-item data from
+  PDF attachments, match vendors against your approved list, and post entries to
+  your accounting system. The final accounting update requires human approval.
+category: finance
+icon: receipt
+
+requiredCredentials:
+  - email_imap
+  - accounting_api_key
+
+parameters:
+  - name: email_account
+    label: Email Account
+    type: email
+    required: true
+    description: The mailbox to monitor for incoming invoices
+  - name: vendor_list_url
+    label: Vendor List URL
+    type: url
+    required: true
+    description: URL to the approved vendor CSV or API endpoint
+  - name: accounting_endpoint
+    label: Accounting System Endpoint
+    type: url
+    required: true
+    description: Base URL of your accounting system API
+  - name: invoice_folder
+    label: Invoice Folder
+    type: string
+    required: false
+    default: INBOX/Invoices
+    description: IMAP folder to scan for invoices
+  - name: currency
+    label: Default Currency
+    type: select
+    required: false
+    default: USD
+    description: Default currency for line-item amounts
+    options:
+      - USD
+      - EUR
+      - GBP
+      - CAD
+      - AUD
+
+steps:
+  - name: Fetch invoice emails
+    tool: nanoclaw_execute
+    prompt: >-
+      Connect to the IMAP mailbox at {{email_account}} and scan the
+      {{invoice_folder}} folder. Retrieve all unread messages that have PDF
+      attachments. For each message, download the PDF attachment and return a
+      JSON array of objects with fields: message_id, sender, subject, date, and
+      a base64-encoded pdf_content.
+    requiresApproval: false
+    networkAllowlist:
+      - "*.gmail.com"
+      - "*.outlook.com"
+      - "imap.*"
+    timeout: 120000
+
+  - name: Extract invoice data from PDFs
+    tool: nanoclaw_execute
+    prompt: >-
+      For each PDF provided in the previous step, extract structured invoice
+      data including: invoice_number, vendor_name, vendor_address, issue_date,
+      due_date, line_items (description, quantity, unit_price, amount), subtotal,
+      tax, and total. Use {{currency}} as the default currency when not
+      specified. Return the results as a JSON array.
+    requiresApproval: false
+    networkAllowlist: []
+    timeout: 180000
+
+  - name: Match vendors
+    tool: nanoclaw_execute
+    prompt: >-
+      Fetch the approved vendor list from {{vendor_list_url}}. For each
+      extracted invoice, fuzzy-match the vendor_name against the approved list.
+      Flag any invoice whose vendor is not found or whose match confidence is
+      below 80%. Return a JSON array with the original invoice data plus fields:
+      matched_vendor_id, match_confidence, and flagged (boolean).
+    requiresApproval: false
+    networkAllowlist:
+      - "{{vendor_list_url}}"
+    timeout: 60000
+
+  - name: Update accounting system
+    tool: nanoclaw_execute
+    prompt: >-
+      For each matched (non-flagged) invoice, POST the invoice data to
+      {{accounting_endpoint}}/api/invoices. Include vendor_id, invoice_number,
+      line_items, tax, and total. For flagged invoices, create a review queue
+      entry at {{accounting_endpoint}}/api/review-queue instead. Summarise the
+      results: how many were posted, how many were flagged for review, and any
+      errors encountered.
+    requiresApproval: true
+    networkAllowlist:
+      - "{{accounting_endpoint}}"
+    timeout: 120000
+
+schedule: "0 9 * * 1-5"
+
+networkAllowlist:
+  - "*.gmail.com"
+  - "*.outlook.com"
+  - "imap.*"
