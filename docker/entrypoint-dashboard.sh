@@ -16,7 +16,7 @@ if [ -d "$MIGRATIONS_DIR" ]; then
     migrate(driz, { migrationsFolder: '$MIGRATIONS_DIR' });
     db.close();
     console.log('[entrypoint] Migrations complete.');
-  " 2>/dev/null || echo "[entrypoint] Migration skipped (tables may already exist)."
+  " 2>/tmp/migration-error.log || echo "[entrypoint] Migration failed, check /tmp/migration-error.log"
 fi
 
 # Start the server

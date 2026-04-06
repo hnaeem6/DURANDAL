@@ -79,7 +79,7 @@ const result = NextAuth({
       const { pathname } = request.nextUrl;
 
       // Allow public routes without auth
-      const publicPaths = ["/login", "/setup", "/api/auth", "/api/setup"];
+      const publicPaths = ["/login", "/setup", "/api/auth", "/api/setup", "/api/health"];
       const isPublicPath = publicPaths.some((path) =>
         pathname.startsWith(path)
       );

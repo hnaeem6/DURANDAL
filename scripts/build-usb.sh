@@ -46,10 +46,10 @@ echo "[3/6] Downloading Ollama model ($MODEL)..."
 if command -v ollama &> /dev/null; then
   ollama pull "$MODEL" 2>/dev/null || true
   # Find the model files
-  OLLAMA_DIR="${OLLAMA_MODELS:-$HOME/.ollama/models}"
+  OLLAMA_DIR="${HOME}/.ollama"
   if [ -d "$OLLAMA_DIR" ]; then
-    cp -r "$OLLAMA_DIR" "$BUILD_DIR/ollama/models"
-    echo "   Model copied: $(du -sh "$BUILD_DIR/ollama/models" | cut -f1)"
+    cp -r "$OLLAMA_DIR" "$BUILD_DIR/ollama/data"
+    echo "   Model copied: $(du -sh "$BUILD_DIR/ollama/data" | cut -f1)"
   fi
 else
   echo "   WARNING: Ollama not installed locally. Model must be pulled after deployment."

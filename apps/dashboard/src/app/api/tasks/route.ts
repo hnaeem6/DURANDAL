@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   }
 
   const user = await getAuthUser();
-  const createdBy = user?.email ?? "system";
+  const createdBy = user?.id ?? "system";
 
   const { id } = createTask({
     input,

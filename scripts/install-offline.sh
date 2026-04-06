@@ -69,15 +69,15 @@ fi
 
 # Step 4: Load Ollama model weights
 echo "[4/5] Loading AI model..."
-if [ -d "$SCRIPT_DIR/ollama/models" ]; then
-  # Create Ollama data volume and copy model
+if [ -d "$SCRIPT_DIR/ollama/data" ]; then
+  # Create Ollama data volume and copy full .ollama directory (manifests + blobs)
   docker volume create durandal-ollama-models 2>/dev/null || true
 
-  # Use a temporary container to copy model files into the volume
+  # Use a temporary container to copy Ollama data into the volume
   docker run --rm \
-    -v durandal-ollama-models:/root/.ollama/models \
-    -v "$SCRIPT_DIR/ollama/models:/src/models:ro" \
-    alpine sh -c "cp -r /src/models/* /root/.ollama/models/ 2>/dev/null || true"
+    -v durandal-ollama-models:/root/.ollama \
+    -v "$SCRIPT_DIR/ollama/data:/src/ollama:ro" \
+    alpine sh -c "cp -r /src/ollama/* /root/.ollama/"
 
   echo "  Model loaded from USB."
 else

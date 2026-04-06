@@ -3,9 +3,66 @@ import {
   getApproval,
   updateApprovalStatus,
 } from "@/lib/approvals";
-import { updateTaskStatus, addTaskEvent } from "@/lib/tasks";
+import { getTask, updateTaskStatus, addTaskEvent } from "@/lib/tasks";
+import { loadTemplate } from "@/lib/template-loader";
+import { sendToHermes } from "@/lib/hermes-client";
 import { logAudit } from "@/lib/audit";
 import { getAuthUser } from "@/lib/rbac";
+
+/**
+ * Resume template execution from the step after the one that was approved.
+ * Runs asynchronously so it does not block the approval response.
+ */
+async function resumeTemplateExecution(
+  taskId: string,
+  approvedStepIndex: number,
+): Promise<void> {
+  const task = getTask(taskId);
+  if (!task || !task.templateId) return;
+
+  const template = loadTemplate(task.templateId);
+  if (!template) {
+    console.error(
+      `[approval-resume] Template not found: ${task.templateId} (task ${taskId})`,
+    );
+    return;
+  }
+
+  const remainingSteps = template.steps.slice(approvedStepIndex + 1);
+  if (remainingSteps.length === 0) {
+    // No more steps — mark task completed
+    updateTaskStatus(taskId, "completed");
+    addTaskEvent(taskId, "completed", "All steps completed after approval");
+    return;
+  }
+
+  try {
+    for (let i = 0; i < remainingSteps.length; i++) {
+      const step = remainingSteps[i];
+      const globalIndex = approvedStepIndex + 1 + i;
+
+      addTaskEvent(taskId, "step_start", `Executing step "${step.name}"`, {
+        stepIndex: globalIndex,
+      });
+
+      const result = await sendToHermes(step.prompt);
+
+      addTaskEvent(
+        taskId,
+        "step_complete",
+        `Step "${step.name}" completed`,
+        { stepIndex: globalIndex, response: result.response.slice(0, 500) },
+      );
+    }
+
+    updateTaskStatus(taskId, "completed", "All steps completed after approval resume");
+    addTaskEvent(taskId, "completed", "Task completed successfully after approval resume");
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : "Unknown error";
+    updateTaskStatus(taskId, "failed", undefined, errorMsg);
+    addTaskEvent(taskId, "failed", `Task failed during resume: ${errorMsg}`);
+  }
+}
 
 export async function GET(
   _req: NextRequest,
@@ -79,9 +136,7 @@ export async function POST(
       { approvalId: id, stepIndex: approval.stepIndex },
     );
   } else {
-    // Approved — mark task as executing so the step can proceed.
-    // In a full async system the resumed execution would happen here;
-    // for now we transition the task back to "executing" as a signal.
+    // Approved — mark task as executing and resume remaining steps
     updateTaskStatus(approval.taskId, "executing");
     addTaskEvent(
       approval.taskId,
@@ -89,6 +144,8 @@ export async function POST(
       `Step "${approval.stepName}" approved by ${actor} — resuming`,
       { approvalId: id, stepIndex: approval.stepIndex },
     );
+    // Resume execution asynchronously (don't block the response)
+    void resumeTemplateExecution(approval.taskId, approval.stepIndex);
   }
 
   logAudit({

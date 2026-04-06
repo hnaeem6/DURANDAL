@@ -14,6 +14,7 @@ services:
       - VAULT_MASTER_KEY=${VAULT_MASTER_KEY:-}
       - DURANDAL_LICENSE_KEY=${DURANDAL_LICENSE_KEY:-}
       - DURANDAL_TELEMETRY_ENABLED=${DURANDAL_TELEMETRY_ENABLED:-false}
+      - API_SERVER_KEY=${API_SERVER_KEY:-}
     volumes:
       - durandal-data:/data
     healthcheck:

@@ -36,19 +36,6 @@ export async function GET() {
  */
 export async function POST(request: Request) {
   try {
-    const db = getDb();
-
-    // Check if users already exist
-    const result = db.select({ count: count() }).from(users).get();
-    const userCount = result?.count ?? 0;
-
-    if (userCount > 0) {
-      return NextResponse.json(
-        { error: "Setup has already been completed" },
-        { status: 403 }
-      );
-    }
-
     const body = await request.json();
     const { name, email, password } = body as {
       name?: string;
@@ -74,18 +61,37 @@ export async function POST(request: Request) {
     // Hash password with cost factor 12
     const passwordHash = await hash(password, 12);
 
-    // Create the owner account
+    // Use a transaction to prevent TOCTOU race (multiple simultaneous setup requests)
+    const db = getDb();
     const id = crypto.randomUUID();
-    db.insert(users)
-      .values({
-        id,
-        email,
-        name,
-        passwordHash,
-        role: "owner",
-        createdAt: new Date(),
-      })
-      .run();
+    const txResult = db.transaction((tx) => {
+      const result = tx.select({ count: count() }).from(users).get();
+      const userCount = result?.count ?? 0;
+
+      if (userCount > 0) {
+        return { alreadySetup: true } as const;
+      }
+
+      tx.insert(users)
+        .values({
+          id,
+          email,
+          name,
+          passwordHash,
+          role: "owner",
+          createdAt: new Date(),
+        })
+        .run();
+
+      return { alreadySetup: false } as const;
+    });
+
+    if (txResult.alreadySetup) {
+      return NextResponse.json(
+        { error: "Setup has already been completed" },
+        { status: 403 }
+      );
+    }
 
     logAudit({ actor: email, action: "user.create", resource: `user:${id}`, details: "Owner account created via setup wizard" });
 

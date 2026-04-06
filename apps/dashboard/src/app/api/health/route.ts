@@ -9,12 +9,13 @@ export async function GET() {
     checkNanoclawHealth(),
   ]);
 
+  const status = hermes && nanoclaw ? "healthy" : "degraded";
   return NextResponse.json({
-    status: hermes && nanoclaw ? "healthy" : "degraded",
+    status,
     version: DURANDAL_VERSION,
     services: {
       hermes: hermes ? "healthy" : "unhealthy",
       nanoclaw: nanoclaw ? "healthy" : "unhealthy",
     },
-  });
+  }, { status: status === "healthy" ? 200 : 503 });
 }

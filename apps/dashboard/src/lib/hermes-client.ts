@@ -7,6 +7,10 @@ export async function sendToHermes(
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
+  const apiKey = process.env.API_SERVER_KEY;
+  if (apiKey) {
+    headers["Authorization"] = `Bearer ${apiKey}`;
+  }
   if (sessionId) {
     headers["X-Hermes-Session-Id"] = sessionId;
   }
