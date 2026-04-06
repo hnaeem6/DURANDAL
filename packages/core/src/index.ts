@@ -6,7 +6,7 @@ export * from "./license";
 export const DURANDAL_VERSION = "0.1.0";
 
 export const HERMES_DEFAULT_PORT = 8642;
-export const NANOCLAW_DEFAULT_PORT = 3000;
+export const NANOCLAW_DEFAULT_PORT = 7777;
 export const DASHBOARD_DEFAULT_PORT = 3001;
 
 /** Task status lifecycle */

@@ -52,7 +52,7 @@ agent:
 # Platform Toolsets
 # =============================================================================
 platform_toolsets:
-  api_server: [terminal, file, web, todo]
+  api_server: [terminal, file, web, todo, nanoclaw]
 
 # =============================================================================
 # Session Reset Policy

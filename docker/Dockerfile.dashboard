@@ -20,13 +20,18 @@ RUN pnpm --filter @durandal/dashboard build
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apt-get update && apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/*
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 COPY --from=builder /app/apps/dashboard/.next/standalone ./
 COPY --from=builder /app/apps/dashboard/.next/static ./apps/dashboard/.next/static
 COPY --from=builder /app/apps/dashboard/public ./apps/dashboard/public
+COPY --from=builder /app/packages/db/drizzle ./packages/db/drizzle
+COPY docker/entrypoint-dashboard.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 USER nextjs
 EXPOSE 3001
 ENV PORT=3001
 ENV HOSTNAME="0.0.0.0"
-CMD ["node", "apps/dashboard/server.js"]
+ENTRYPOINT ["/app/entrypoint.sh"]

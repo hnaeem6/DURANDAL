@@ -21,4 +21,4 @@ data:
   API_SERVER_HOST: "0.0.0.0"
   # NanoClaw
   DURANDAL_MODE: "executor"
-  NANOCLAW_API_PORT: {{ .Values.nanoclaw.port | quote }}
+  DURANDAL_API_PORT: {{ .Values.nanoclaw.port | quote }}

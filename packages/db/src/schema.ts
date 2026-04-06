@@ -32,9 +32,7 @@ export const tasks = sqliteTable("tasks", {
   input: text("input").notNull(),
   output: text("output"),
   error: text("error"),
-  createdBy: text("created_by")
-    .notNull()
-    .references(() => users.id),
+  createdBy: text("created_by").notNull(),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),

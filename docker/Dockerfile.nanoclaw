@@ -11,12 +11,14 @@ COPY vendors/nanoclaw/ .
 
 RUN pnpm install --frozen-lockfile 2>/dev/null || npm install
 
+RUN npm run build
+
 RUN mkdir -p /data/nanoclaw
 
 ENV DURANDAL_MODE=executor
-EXPOSE 3000
+EXPOSE 7777
 
 HEALTHCHECK --interval=15s --timeout=5s --retries=3 \
-  CMD curl -f http://localhost:3000/health || exit 1
+  CMD curl -f http://localhost:7777/health || exit 1
 
-CMD ["node", "src/index.ts"]
+CMD ["node", "dist/index.js"]

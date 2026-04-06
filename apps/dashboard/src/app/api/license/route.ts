@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createDb, settings } from "@durandal/db";
 import { eq } from "drizzle-orm";
 import { getFeatureLimits } from "@durandal/core";
-import { validateLicense } from "@durandal/core/src/license-verify";
+import { validateLicense } from "@durandal/core/license-verify";
 import { requireRole } from "@/lib/rbac";
 import { config } from "@/lib/config";
 
