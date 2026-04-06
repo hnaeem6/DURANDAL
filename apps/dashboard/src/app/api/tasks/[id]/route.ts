@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTask, cancelTask } from "@/lib/tasks";
 import { logAudit } from "@/lib/audit";
+import { getAuthUser } from "@/lib/rbac";
 
 export async function GET(
   _req: NextRequest,
@@ -21,7 +22,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  const user = await getAuthUser();
   cancelTask(id);
-  logAudit({ actor: "system", action: "task.cancel", resource: `task:${id}` });
+  logAudit({ actor: user?.id ?? "system", action: "task.cancel", resource: `task:${id}` });
   return NextResponse.json({ ok: true });
 }

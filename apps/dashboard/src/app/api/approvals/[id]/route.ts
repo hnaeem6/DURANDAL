@@ -7,7 +7,19 @@ import { getTask, updateTaskStatus, addTaskEvent } from "@/lib/tasks";
 import { loadTemplate } from "@/lib/template-loader";
 import { sendToHermes } from "@/lib/hermes-client";
 import { logAudit } from "@/lib/audit";
-import { getAuthUser } from "@/lib/rbac";
+import { getAuthUser, requireRole } from "@/lib/rbac";
+
+/**
+ * Substitute `{{param}}` placeholders in a string with the provided values.
+ */
+function substituteParams(
+  text: string,
+  params: Record<string, string>,
+): string {
+  return text.replace(/\{\{(\w+)\}\}/g, (_match, key: string) => {
+    return params[key] ?? `{{${key}}}`;
+  });
+}
 
 /**
  * Resume template execution from the step after the one that was approved.
@@ -28,6 +40,13 @@ async function resumeTemplateExecution(
     return;
   }
 
+  // Parse stored parameters from task input so we can substitute {{param}} placeholders
+  let taskParams: Record<string, string> = {};
+  try {
+    const parsed = JSON.parse(task.input);
+    taskParams = parsed.params ?? {};
+  } catch { /* task.input may be plain text */ }
+
   const remainingSteps = template.steps.slice(approvedStepIndex + 1);
   if (remainingSteps.length === 0) {
     // No more steps — mark task completed
@@ -45,7 +64,8 @@ async function resumeTemplateExecution(
         stepIndex: globalIndex,
       });
 
-      const result = await sendToHermes(step.prompt);
+      const resolvedPrompt = substituteParams(step.prompt, taskParams);
+      const result = await sendToHermes(resolvedPrompt);
 
       addTaskEvent(
         taskId,
@@ -119,6 +139,10 @@ export async function POST(
       { status: 400 },
     );
   }
+
+  // Approving/rejecting is a privileged operation — require admin role
+  const roleCheck = await requireRole("admin");
+  if (roleCheck) return roleCheck;
 
   const user = await getAuthUser();
   const actor = user?.id ?? "system";

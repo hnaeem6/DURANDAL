@@ -26,6 +26,7 @@ import {
   Mail,
   Share2,
   Package,
+  PackageSearch,
   Headphones,
   Bot,
   FileText,
@@ -46,11 +47,10 @@ const ICON_MAP: Record<string, LucideIcon> = {
   mail: Mail,
   share2: Share2,
   package: Package,
+  packagesearch: PackageSearch,
   headphones: Headphones,
   bot: Bot,
-  "file-text": FileText,
   filetext: FileText,
-  "bar-chart-3": BarChart3,
   barchart3: BarChart3,
   shield: Shield,
   globe: Globe,
@@ -60,7 +60,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
 };
 
 function getIcon(name: string): LucideIcon {
-  const key = name.toLowerCase().replace(/\s+/g, "");
+  const key = name.toLowerCase().replace(/[\s-]+/g, "");
   return ICON_MAP[key] ?? Bot;
 }
 
