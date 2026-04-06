@@ -8,6 +8,12 @@ services:
       - HERMES_URL=http://hermes:8642
       - NANOCLAW_URL=http://nanoclaw:7777
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-change-me-in-production}
+      - AUTH_TRUST_HOST=true
+      - NEXTAUTH_URL=https://localhost
+      - DURANDAL_API_TOKEN=${DURANDAL_API_TOKEN:-}
+      - VAULT_MASTER_KEY=${VAULT_MASTER_KEY:-}
+      - DURANDAL_LICENSE_KEY=${DURANDAL_LICENSE_KEY:-}
+      - DURANDAL_TELEMETRY_ENABLED=${DURANDAL_TELEMETRY_ENABLED:-false}
     volumes:
       - durandal-data:/data
     healthcheck:
@@ -43,6 +49,9 @@ services:
       - API_SERVER_HOST=0.0.0.0
       - NANOCLAW_URL=http://nanoclaw:7777
       - DURANDAL_API_TOKEN=${DURANDAL_API_TOKEN:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY:-}
     volumes:
       - durandal-data:/data
     healthcheck:
@@ -69,8 +78,6 @@ services:
       - DURANDAL_MODE=executor
       - DURANDAL_API_PORT=7777
       - DURANDAL_API_TOKEN=${DURANDAL_API_TOKEN:-}
-    ports:
-      - "7777:7777"
     volumes:
       - durandal-data:/data
       - /var/run/docker.sock:/var/run/docker.sock

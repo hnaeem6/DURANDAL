@@ -70,12 +70,27 @@ info "Backing up databases..."
 mkdir -p "$STAGING/databases"
 
 # Copy databases from the volume via a temporary container
+# Uses SQLite .backup API when sqlite3 CLI is available for crash-safe copies;
+# otherwise falls back to copying the DB plus WAL/SHM files.
 if docker volume inspect durandal-data &>/dev/null 2>&1; then
   docker run --rm \
     -v durandal-data:/source:ro \
     -v "$STAGING/databases":/dest \
     alpine:latest \
-    sh -c 'find /source -name "*.db" -o -name "*.sqlite" -o -name "*.sqlite3" | while read f; do cp "$f" /dest/ 2>/dev/null; done; true'
+    sh -c '
+      apk add --no-cache sqlite >/dev/null 2>&1
+      for f in $(find /source -name "*.db" -o -name "*.sqlite" -o -name "*.sqlite3"); do
+        base=$(basename "$f")
+        if command -v sqlite3 >/dev/null 2>&1; then
+          sqlite3 "$f" ".backup /dest/$base" 2>/dev/null && continue
+        fi
+        # Fallback: copy the DB and its WAL/SHM companions
+        cp "$f" "/dest/$base" 2>/dev/null
+        [ -f "${f}-wal" ] && cp "${f}-wal" "/dest/${base}-wal" 2>/dev/null
+        [ -f "${f}-shm" ] && cp "${f}-shm" "/dest/${base}-shm" 2>/dev/null
+      done
+      true
+    '
 
   DB_COUNT=$(find "$STAGING/databases" -type f 2>/dev/null | wc -l | tr -d ' ')
   info "  Found $DB_COUNT database file(s)."

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, ListChecks, LayoutTemplate, Bot, ScrollText, Settings, LogOut } from "lucide-react";
+import { signOut } from "next-auth/react";
+import { Home, ListChecks, LayoutTemplate, Bot, ScrollText, Settings, LogOut, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface NavUser {
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
   { href: "/", label: "Home", icon: Home },
   { href: "/tasks", label: "Tasks", icon: ListChecks },
   { href: "/templates", label: "Templates", icon: LayoutTemplate },
+  { href: "/approvals", label: "Approvals", icon: ShieldCheck },
   { href: "/agents", label: "Agents", icon: Bot },
   { href: "/audit", label: "Audit Log", icon: ScrollText },
   { href: "/settings", label: "Settings", icon: Settings },
@@ -83,15 +85,13 @@ export function NavSidebar({ user }: NavSidebarProps) {
               {user.role}
             </Badge>
           </div>
-          <form action="/api/auth/signout" method="POST">
-            <button
-              type="submit"
-              className="text-gray-500 hover:text-gray-300 transition-colors"
-              title="Sign out"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
-          </form>
+          <button
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            className="text-gray-500 hover:text-gray-300 transition-colors"
+            title="Sign out"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </aside>

@@ -28,6 +28,7 @@ COPY --from=builder /app/apps/dashboard/.next/standalone ./
 COPY --from=builder /app/apps/dashboard/.next/static ./apps/dashboard/.next/static
 COPY --from=builder /app/apps/dashboard/public ./apps/dashboard/public
 COPY --from=builder /app/packages/db/drizzle ./packages/db/drizzle
+COPY --from=builder /app/templates ./templates
 COPY docker/entrypoint-dashboard.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 USER nextjs

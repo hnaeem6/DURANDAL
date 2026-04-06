@@ -4,12 +4,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl docker.io && \
     rm -rf /var/lib/apt/lists/*
 
-RUN corepack enable
-
 WORKDIR /app
 COPY vendors/nanoclaw/ .
 
-RUN pnpm install --frozen-lockfile 2>/dev/null || npm install
+RUN npm ci || npm install
 
 RUN npm run build
 

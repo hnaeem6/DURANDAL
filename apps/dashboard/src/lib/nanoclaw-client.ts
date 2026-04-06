@@ -10,9 +10,15 @@ export async function executeInNanoClaw(req: {
   sessionId?: string;
   error?: string;
 }> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const token = process.env.DURANDAL_API_TOKEN;
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${config.nanoclawUrl}/api/execute`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(req),
   });
 

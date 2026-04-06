@@ -7,6 +7,7 @@ import {
 } from "@/lib/tasks";
 import { sendToHermes } from "@/lib/hermes-client";
 import { logAudit } from "@/lib/audit";
+import { getAuthUser } from "@/lib/rbac";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -16,14 +17,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "input is required" }, { status: 400 });
   }
 
+  const user = await getAuthUser();
+  const createdBy = user?.email ?? "system";
+
   const { id } = createTask({
     input,
     templateId,
-    createdBy: "system",
+    createdBy,
   });
 
   addTaskEvent(id, "created", `Task created: ${input.slice(0, 100)}`);
-  logAudit({ actor: "system", action: "task.create", resource: `task:${id}`, details: input.slice(0, 200) });
+  logAudit({ actor: createdBy, action: "task.create", resource: `task:${id}`, details: input.slice(0, 200) });
 
   // Execute synchronously for Phase 1 (Phase 2 adds async + WebSocket)
   try {

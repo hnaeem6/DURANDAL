@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
   "/": { title: "Home", subtitle: "Submit and monitor tasks" },
   "/tasks": { title: "Tasks", subtitle: "View all task history" },
+  "/templates": { title: "Templates", subtitle: "Task templates library" },
+  "/approvals": { title: "Approvals", subtitle: "Review pending approvals" },
   "/agents": { title: "Agents", subtitle: "Memory and profile management" },
   "/audit": { title: "Audit Log", subtitle: "System activity history" },
   "/settings": { title: "Settings", subtitle: "System configuration" },

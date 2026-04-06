@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,20 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
 
   const callbackUrl = searchParams.get("callbackUrl") ?? "/";
+
+  // Redirect to setup if no users exist yet
+  useEffect(() => {
+    fetch("/api/setup")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.needsSetup) {
+          router.push("/setup");
+        }
+      })
+      .catch(() => {
+        // ignore — setup endpoint may not exist yet
+      });
+  }, [router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

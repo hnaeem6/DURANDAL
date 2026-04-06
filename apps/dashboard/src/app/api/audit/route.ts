@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createDb, auditLog } from "@durandal/db";
 import { desc } from "drizzle-orm";
 import { config } from "@/lib/config";
+import { requireRole } from "@/lib/rbac";
 
 function getDb() {
   const dbPath = config.databaseUrl.replace("file:", "");
@@ -9,6 +10,8 @@ function getDb() {
 }
 
 export async function GET() {
+  const denied = await requireRole("admin");
+  if (denied) return denied;
   try {
     const db = getDb();
     const entries = db
