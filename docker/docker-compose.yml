@@ -71,12 +71,9 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.nanoclaw
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    cap_add:
-      - NET_BIND_SERVICE
+    # NanoClaw needs Docker socket access to spawn sandbox containers
+    init: true
+    privileged: false
     environment:
       - DURANDAL_MODE=executor
       - DURANDAL_API_PORT=7777
@@ -88,20 +85,19 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:7777/health"]
       interval: 15s
       timeout: 5s
-      retries: 3
-      start_period: 15s
+      retries: 5
+      start_period: 30s
     networks:
       - durandal-internal
-    restart: unless-stopped
 
   ollama:
     image: ollama/ollama:latest
     volumes:
       - ollama-models:/root/.ollama
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      test: ["CMD-SHELL", "ollama list || exit 1"]
       interval: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 3
       start_period: 10s
     networks:

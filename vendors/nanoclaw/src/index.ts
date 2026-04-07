@@ -570,7 +570,18 @@ function ensureContainerSystemRunning(): void {
 }
 
 async function main(): Promise<void> {
-  ensureContainerSystemRunning();
+  // In DURANDAL mode, Docker runtime check is deferred — the container runtime
+  // may not be accessible during initial startup in Docker-in-Docker environments.
+  // Container availability is verified when a task is actually dispatched.
+  if (!process.env.DURANDAL_API_PORT) {
+    ensureContainerSystemRunning();
+  } else {
+    try {
+      ensureContainerSystemRunning();
+    } catch {
+      logger.warn('Docker runtime not available at startup — container tasks will be checked on demand');
+    }
+  }
   initDatabase();
   logger.info('Database initialized');
   loadState();
